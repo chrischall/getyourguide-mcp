@@ -2,11 +2,11 @@
 // must hold a version string that matches package.json's `version`.
 //
 // Why this exists: a recurring class of bug where a VERSION constant
-// (used as the MCP server's self-reported version + as the fetchproxy
-// bridge identity) drifts from package.json because release-please's
-// `extra-files` registration lacks the marker — so release-please
-// silently skips bumping it on each release. resy-mcp v0.2.0 and
-// opentable-mcp every release since v0.9.1 hit this.
+// (used as the MCP server's self-reported version) drifts from
+// package.json because release-please's `extra-files` registration
+// lacks the marker — so release-please silently skips bumping it on
+// each release. resy-mcp v0.2.0 and opentable-mcp every release since
+// v0.9.1 hit this.
 //
 // This test catches it at CI time. If a future contributor registers
 // a new version-bearing constant, just add the `x-release-please-version`

@@ -1,37 +1,37 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "io.github.chrischall/ofw-mcp",
-  "description": "OurFamilyWizard co-parenting for Claude — messages, calendar, expenses, and journal",
+  "name": "io.github.chrischall/getyourguide-mcp",
+  "description": "GetYourGuide tours & activities for Claude — search, details, options, and reviews",
   "repository": {
-    "url": "https://github.com/chrischall/ofw-mcp",
+    "url": "https://github.com/chrischall/getyourguide-mcp",
     "source": "github"
   },
-  "version": "2.4.3",
+  "version": "0.0.0",
   "packages": [
     {
       "registryType": "npm",
-      "identifier": "ofw-mcp",
-      "version": "2.4.3",
+      "identifier": "getyourguide-mcp",
+      "version": "0.0.0",
       "transport": {
         "type": "stdio"
       },
       "environmentVariables": [
         {
-          "name": "OFW_USERNAME",
-          "description": "Your OurFamilyWizard login email address. Optional — if omitted, the server falls back to the fetchproxy browser extension (requires being signed in to ourfamilywizard.com).",
-          "isRequired": false,
-          "format": "string"
-        },
-        {
-          "name": "OFW_PASSWORD",
-          "description": "Your OurFamilyWizard password. Optional — see OFW_USERNAME.",
-          "isRequired": false,
+          "name": "GYG_API_KEY",
+          "description": "Your GetYourGuide Partner API key (X-ACCESS-TOKEN). Get one by joining the GetYourGuide partner program at partner.getyourguide.com.",
+          "isRequired": true,
           "format": "string",
           "isSecret": true
         },
         {
-          "name": "OFW_WRITE_MODE",
-          "description": "Write-tool gate: \"none\" registers no write tools; \"drafts\" registers draft-level writes only (save/delete drafts, upload attachments); \"all\" registers everything (default). Unrecognized values fail closed to \"none\".",
+          "name": "GYG_CURRENCY",
+          "description": "Default currency for prices (ISO 4217, e.g. USD or EUR). Optional — individual tool calls can override it.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "GYG_LANGUAGE",
+          "description": "Default content language (e.g. en, de). Optional — individual tool calls can override it.",
           "isRequired": false,
           "format": "string"
         }

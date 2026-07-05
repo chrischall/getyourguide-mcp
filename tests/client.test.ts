@@ -1,846 +1,232 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { OFWClient } from '../src/client.js';
+import {
+  DEFAULT_BASE_URL,
+  DEFAULT_RETRY_DELAY_MS,
+  GYGClient,
+  RETRY_AFTER_CAP_MS,
+  requestTimeoutMs,
+  resolveBaseUrl,
+  retryDelayMs,
+} from '../src/client.js';
+import { VERSION } from '../src/version.js';
 
-const MOCK_TOKEN = 'test-token-abc';
+const ENV_KEYS = ['GYG_API_KEY', 'GYG_BASE_URL', 'GYG_CURRENCY', 'GYG_LANGUAGE', 'GYG_REQUEST_TIMEOUT_MS'] as const;
+let savedEnv: Record<string, string | undefined>;
 
-interface MockResponse {
-  status: number;
-  body?: unknown;
-  bytes?: Uint8Array;
-  headers?: Record<string, string>;
+beforeEach(() => {
+  savedEnv = {};
+  for (const key of ENV_KEYS) {
+    savedEnv[key] = process.env[key];
+    delete process.env[key];
+  }
+});
+
+afterEach(() => {
+  for (const key of ENV_KEYS) {
+    if (savedEnv[key] === undefined) delete process.env[key];
+    else process.env[key] = savedEnv[key];
+  }
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+function jsonResponse(data: unknown, status = 200, headers: Record<string, string> = {}): Response {
+  return new Response(JSON.stringify(data), { status, headers });
 }
 
-function mockFetch(responses: MockResponse[]) {
-  let idx = 0;
-  return vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
-    const r = responses[idx++] ?? { status: 200, body: {} };
-    const headerMap = r.headers ?? {};
-    return {
-      ok: r.status >= 200 && r.status < 300,
-      status: r.status,
-      statusText: String(r.status),
-      headers: {
-        get: (key: string) => headerMap[key.toLowerCase()] ?? null,
-        getSetCookie: () => (headerMap['set-cookie'] ? [headerMap['set-cookie']] : []),
-      },
-      json: async () => r.body,
-      text: async () => JSON.stringify(r.body),
-      arrayBuffer: async () => (r.bytes ?? new Uint8Array()).buffer,
-    } as unknown as Response;
+function makeClient(responses: Response[]): { client: GYGClient; fetchFn: ReturnType<typeof vi.fn>; sleeps: number[] } {
+  const fetchFn = vi.fn();
+  for (const response of responses) fetchFn.mockResolvedValueOnce(response);
+  const sleeps: number[] = [];
+  const client = new GYGClient({
+    fetchFn: fetchFn as unknown as typeof fetch,
+    sleepFn: async (ms) => {
+      sleeps.push(ms);
+    },
   });
+  return { client, fetchFn, sleeps };
 }
 
-// Every login now makes 2 fetches: GET /ofw/login.form + POST /ofw/login
-const LOGIN_INIT = {
-  status: 303,
-  headers: { 'set-cookie': 'SESSION=test-session; Path=/ofw; HttpOnly' },
-};
-const LOGIN_SUCCESS = {
-  status: 200,
-  body: { auth: MOCK_TOKEN, redirectUrl: '/app/home' },
-  headers: { 'content-type': 'application/json' },
-};
-
-describe('OFWClient', () => {
-  beforeEach(() => {
-    process.env.OFW_USERNAME = 'test@example.com';
-    process.env.OFW_PASSWORD = 'testpass';
+describe('resolveBaseUrl', () => {
+  it('defaults to the Partner API base', () => {
+    expect(resolveBaseUrl()).toBe(DEFAULT_BASE_URL);
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  it('honors GYG_BASE_URL and strips trailing slashes', () => {
+    process.env.GYG_BASE_URL = 'https://example.com/api/';
+    expect(resolveBaseUrl()).toBe('https://example.com/api');
+  });
+});
+
+describe('requestTimeoutMs', () => {
+  it('defaults to 30s', () => {
+    expect(requestTimeoutMs()).toBe(30_000);
   });
 
-  it('logs in on first request and sets token', async () => {
-    const spy = mockFetch([
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 200, body: { data: 'ok' } },
+  it('honors a valid GYG_REQUEST_TIMEOUT_MS', () => {
+    process.env.GYG_REQUEST_TIMEOUT_MS = '5000';
+    expect(requestTimeoutMs()).toBe(5000);
+  });
+
+  it('falls back on a non-numeric value', () => {
+    process.env.GYG_REQUEST_TIMEOUT_MS = 'abc';
+    expect(requestTimeoutMs()).toBe(30_000);
+  });
+
+  it('falls back on a non-positive value', () => {
+    process.env.GYG_REQUEST_TIMEOUT_MS = '-1';
+    expect(requestTimeoutMs()).toBe(30_000);
+  });
+});
+
+describe('retryDelayMs', () => {
+  it('defaults when the header is missing', () => {
+    expect(retryDelayMs(null)).toBe(DEFAULT_RETRY_DELAY_MS);
+  });
+
+  it('defaults on a non-numeric header', () => {
+    expect(retryDelayMs('later')).toBe(DEFAULT_RETRY_DELAY_MS);
+  });
+
+  it('defaults on a negative header', () => {
+    expect(retryDelayMs('-2')).toBe(DEFAULT_RETRY_DELAY_MS);
+  });
+
+  it('converts seconds to ms', () => {
+    expect(retryDelayMs('3')).toBe(3000);
+  });
+
+  it('honors zero', () => {
+    expect(retryDelayMs('0')).toBe(0);
+  });
+
+  it('caps large values', () => {
+    expect(retryDelayMs('60')).toBe(RETRY_AFTER_CAP_MS);
+  });
+});
+
+describe('GYGClient.get', () => {
+  it('throws an actionable deferred-config error when GYG_API_KEY is unset', async () => {
+    const { client, fetchFn } = makeClient([]);
+    await expect(client.get('/tours')).rejects.toMatchObject({
+      message: expect.stringContaining('GYG_API_KEY'),
+      hint: expect.stringContaining('partner.getyourguide.com'),
+    });
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it('GETs the path with auth headers and parses JSON', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    const { client, fetchFn } = makeClient([jsonResponse({ data: { tours: [] } })]);
+    const result = await client.get('/tours');
+    expect(result).toEqual({ data: { tours: [] } });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchFn.mock.calls[0];
+    expect(url).toBe(`${DEFAULT_BASE_URL}/tours`);
+    expect(init.headers['X-ACCESS-TOKEN']).toBe('test-key');
+    expect(init.headers.Accept).toBe('application/json');
+    expect(init.headers['User-Agent']).toContain(`getyourguide-mcp/${VERSION}`);
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('injects GYG_CURRENCY / GYG_LANGUAGE defaults and drops undefined params', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    process.env.GYG_CURRENCY = 'USD';
+    process.env.GYG_LANGUAGE = 'en';
+    const { client, fetchFn } = makeClient([jsonResponse({})]);
+    await client.get('/tours', { q: 'louvre', locationId: undefined });
+    const [url] = fetchFn.mock.calls[0];
+    expect(url).toContain('currency=USD');
+    expect(url).toContain('cnt-language=en');
+    expect(url).toContain('q=louvre');
+    expect(url).not.toContain('locationId');
+  });
+
+  it('lets an explicit per-call param beat the env default', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    process.env.GYG_CURRENCY = 'USD';
+    const { client, fetchFn } = makeClient([jsonResponse({})]);
+    await client.get('/tours', { currency: 'EUR' });
+    const [url] = fetchFn.mock.calls[0];
+    expect(url).toContain('currency=EUR');
+    expect(url).not.toContain('USD');
+  });
+
+  it('retries once on 429 honoring Retry-After, then succeeds', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    const { client, fetchFn, sleeps } = makeClient([
+      jsonResponse({}, 429, { 'retry-after': '3' }),
+      jsonResponse({ ok: true }),
     ]);
-
-    const client = new OFWClient();
-    await client.request('GET', '/pub/v1/test');
-
-    // 3 calls: GET /ofw/login.form, POST /ofw/login, GET /pub/v1/test
-    expect(spy).toHaveBeenCalledTimes(3);
-    expect((spy.mock.calls[0][0] as string)).toContain('/ofw/login.form');
-    expect((spy.mock.calls[1][0] as string)).toContain('/ofw/login');
-  });
-
-  it('reuses token on subsequent requests', async () => {
-    const spy = mockFetch([
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 200, body: {} },
-      { status: 200, body: {} },
-    ]);
-
-    const client = new OFWClient();
-    await client.request('GET', '/pub/v1/a');
-    await client.request('GET', '/pub/v1/b');
-
-    // login (2) + 2 requests = 4 calls total
-    expect(spy).toHaveBeenCalledTimes(4);
-  });
-
-  it('retries with fresh login on 401', async () => {
-    const spy = mockFetch([
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 401, body: {} },
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 200, body: { result: 'ok' } },
-    ]);
-
-    const client = new OFWClient();
-    const result = await client.request<{ result: string }>('GET', '/pub/v1/test');
-
-    expect(result.result).toBe('ok');
-    expect(spy).toHaveBeenCalledTimes(6);
-  });
-
-  it('throws on second 401', async () => {
-    mockFetch([
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 401, body: {} },
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 401, body: {} },
-    ]);
-
-    const client = new OFWClient();
-    await expect(client.request('GET', '/pub/v1/test')).rejects.toThrow('401');
-  });
-
-  it('retries once on 429 after 2s delay', async () => {
-    vi.useFakeTimers();
-    const spy = mockFetch([
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 429, body: {} },
-      { status: 200, body: { ok: true } },
-    ]);
-
-    const client = new OFWClient();
-    const promise = client.request('GET', '/pub/v1/test');
-    await vi.advanceTimersByTimeAsync(2000);
-    const result = await promise;
-
+    const result = await client.get('/tours');
     expect(result).toEqual({ ok: true });
-    expect(spy).toHaveBeenCalledTimes(4);
-    vi.useRealTimers();
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    expect(sleeps).toEqual([3000]);
   });
 
-  it('throws on second 429', async () => {
-    vi.useFakeTimers();
-    mockFetch([
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 429, body: {} },
-      { status: 429, body: {} },
+  it('retries once on 503 with the default delay when Retry-After is missing', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    const { client, sleeps } = makeClient([jsonResponse({}, 503), jsonResponse({ ok: true })]);
+    await client.get('/tours');
+    expect(sleeps).toEqual([DEFAULT_RETRY_DELAY_MS]);
+  });
+
+  it('surfaces a rate-limit error when the retry also fails', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    const { client } = makeClient([
+      jsonResponse({}, 429, { 'retry-after': '0' }),
+      jsonResponse({ message: 'slow down' }, 429),
     ]);
-
-    const client = new OFWClient();
-    const promise = client.request('GET', '/pub/v1/test');
-    promise.catch(() => {});
-    await vi.advanceTimersByTimeAsync(2000);
-    await expect(promise).rejects.toThrow('Rate limited');
-    vi.useRealTimers();
-  });
-
-  it('throws if credentials are missing and fetchproxy is disabled', async () => {
-    delete process.env.OFW_USERNAME;
-    delete process.env.OFW_PASSWORD;
-    process.env.OFW_DISABLE_FETCHPROXY = '1';
-    const client = new OFWClient();
-    await expect(client.request('GET', '/pub/v1/test')).rejects.toThrow('OFW_USERNAME');
-    delete process.env.OFW_DISABLE_FETCHPROXY;
-  });
-
-  it('throws if login POST returns non-2xx', async () => {
-    mockFetch([
-      LOGIN_INIT,
-      { status: 401, body: {}, headers: { 'content-type': 'application/json' } },
-    ]);
-
-    const client = new OFWClient();
-    await expect(client.request('GET', '/pub/v1/test')).rejects.toThrow('OFW login failed');
-  });
-
-  it('throws if login returns non-JSON (e.g. redirect to login page)', async () => {
-    // No content-type header → exercises the ?? '' fallback and the non-JSON branch
-    mockFetch([
-      LOGIN_INIT,
-      { status: 200, body: '<html>login page</html>' },
-    ]);
-
-    const client = new OFWClient();
-    await expect(client.request('GET', '/pub/v1/test')).rejects.toThrow('unexpected response');
-  });
-
-  it('proceeds without Cookie header when init response has no set-cookie', async () => {
-    const spy = mockFetch([
-      { status: 303, headers: {} }, // no set-cookie
-      LOGIN_SUCCESS,
-      { status: 200, body: { ok: true } },
-    ]);
-
-    const client = new OFWClient();
-    await client.request('GET', '/pub/v1/test');
-
-    const loginCall = spy.mock.calls[1][1] as RequestInit;
-    const headers = loginCall.headers as Record<string, string>;
-    expect(headers['Cookie']).toBeUndefined();
-  });
-
-  it('throws on non-2xx API response', async () => {
-    mockFetch([
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 500, body: {} },
-    ]);
-
-    const client = new OFWClient();
-    await expect(client.request('GET', '/pub/v1/test')).rejects.toThrow('500');
-  });
-
-  it('sends Authorization header with token', async () => {
-    const spy = mockFetch([
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 200, body: {} },
-    ]);
-
-    const client = new OFWClient();
-    await client.request('GET', '/pub/v1/test');
-
-    const requestCall = spy.mock.calls[2];
-    const init = requestCall[1] as RequestInit;
-    expect((init.headers as Record<string, string>)['Authorization']).toBe(`Bearer ${MOCK_TOKEN}`);
-  });
-
-  it('sends JSON body when body is provided', async () => {
-    const spy = mockFetch([
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 200, body: {} },
-    ]);
-
-    const client = new OFWClient();
-    await client.request('POST', '/pub/v1/test', { foo: 'bar' });
-
-    const requestCall = spy.mock.calls[2];
-    const init = requestCall[1] as RequestInit;
-    expect(init.body).toBe(JSON.stringify({ foo: 'bar' }));
-  });
-
-  it('sends FormData body without Content-Type header', async () => {
-    const spy = mockFetch([
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 200, body: {} },
-    ]);
-
-    const form = new FormData();
-    form.append('messageIds', '42');
-    const client = new OFWClient();
-    await client.request('DELETE', '/pub/v1/messages', form);
-
-    const init = spy.mock.calls[2][1] as RequestInit;
-    const h = init.headers as Record<string, string>;
-    expect(h['Content-Type']).toBeUndefined();
-    expect(init.body).toBe(form);
-  });
-
-  it('re-authenticates when the cached token enters the expiry skew window', async () => {
-    // Six-hour TTL with a five-minute skew: once we're within five
-    // minutes of expiry, the next request should trigger a fresh login
-    // (init + login + api), not reuse the cached token.
-    vi.useFakeTimers();
-    try {
-      const start = new Date('2026-06-01T00:00:00Z');
-      vi.setSystemTime(start);
-
-      const spy = mockFetch([
-        LOGIN_INIT,
-        LOGIN_SUCCESS,
-        { status: 200, body: { ok: 1 } },
-        // Second request, after expiry, triggers a fresh login pair:
-        LOGIN_INIT,
-        LOGIN_SUCCESS,
-        { status: 200, body: { ok: 2 } },
-      ]);
-
-      const client = new OFWClient();
-      await client.request('GET', '/pub/v1/test');
-      expect(spy).toHaveBeenCalledTimes(3); // init + login + api
-
-      // Move 5h 56m into the future — past the 5-min skew, so the token
-      // is "expiring soon" and the client should re-auth on next call.
-      vi.setSystemTime(new Date(start.getTime() + (5 * 60 + 56) * 60 * 1000));
-
-      await client.request('GET', '/pub/v1/test');
-      expect(spy).toHaveBeenCalledTimes(6); // re-init + re-login + api
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('sends ofw-client and ofw-version headers', async () => {
-    const spy = mockFetch([
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 200, body: {} },
-    ]);
-
-    const client = new OFWClient();
-    await client.request('GET', '/pub/v1/test');
-
-    const init = spy.mock.calls[2][1] as RequestInit;
-    const h = init.headers as Record<string, string>;
-    expect(h['ofw-client']).toBe('WebApplication');
-    expect(h['ofw-version']).toBe('1.0.0');
-  });
-
-  describe('request timeout', () => {
-    // Helper: handle the login fetches normally, then hang on subsequent
-    // calls until the request's AbortSignal fires. This is the shape of a
-    // stuck upstream — fetch never resolves, and prior to the timeout fix
-    // it would burn the entire client-side budget.
-    function mockLoginThenHang(): ReturnType<typeof vi.spyOn> {
-      let call = 0;
-      return vi.spyOn(globalThis, 'fetch').mockImplementation((_url, init) => {
-        call++;
-        if (call === 1) {
-          // LOGIN_INIT
-          return Promise.resolve({
-            ok: false, status: 303, statusText: '303',
-            headers: {
-              get: (k: string) => k.toLowerCase() === 'set-cookie' ? 'SESSION=x' : null,
-              getSetCookie: () => ['SESSION=x'],
-            },
-            text: async () => '', json: async () => null,
-          } as unknown as Response);
-        }
-        if (call === 2) {
-          // LOGIN_SUCCESS
-          return Promise.resolve({
-            ok: true, status: 200, statusText: '200',
-            headers: {
-              get: (k: string) => k.toLowerCase() === 'content-type' ? 'application/json' : null,
-              getSetCookie: () => [],
-            },
-            text: async () => JSON.stringify({ auth: MOCK_TOKEN }),
-            json: async () => ({ auth: MOCK_TOKEN }),
-          } as unknown as Response);
-        }
-        // Hang until aborted. Fetch contract: rejects with the signal's
-        // reason (or a DOMException) when the signal aborts.
-        return new Promise((_resolve, reject) => {
-          const signal = (init as RequestInit | undefined)?.signal;
-          if (!signal) return; // hang forever — test will time itself out
-          signal.addEventListener('abort', () => {
-            const err: Error & { name?: string } = new Error(
-              (signal.reason as Error | undefined)?.message ?? 'aborted',
-            );
-            err.name = 'AbortError';
-            reject(err);
-          });
-        });
-      });
-    }
-
-    afterEach(() => {
-      delete process.env.OFW_REQUEST_TIMEOUT_MS;
-    });
-
-    it('aborts a hung request after the default 30s timeout with a clear error', async () => {
-      vi.useFakeTimers();
-      try {
-        mockLoginThenHang();
-        const client = new OFWClient();
-        const promise = client.request('GET', '/pub/v3/messages?folders=42&page=1&size=50');
-        promise.catch(() => undefined);
-        await vi.advanceTimersByTimeAsync(30_000);
-        await expect(promise).rejects.toThrow(
-          /OFW API request timed out after 30000ms.*GET \/pub\/v3\/messages/,
-        );
-      } finally {
-        vi.useRealTimers();
-      }
-    });
-
-    it('respects OFW_REQUEST_TIMEOUT_MS override', async () => {
-      process.env.OFW_REQUEST_TIMEOUT_MS = '5000';
-      vi.useFakeTimers();
-      try {
-        mockLoginThenHang();
-        const client = new OFWClient();
-        const promise = client.request('GET', '/pub/v3/messages');
-        promise.catch(() => undefined);
-        await vi.advanceTimersByTimeAsync(5_000);
-        await expect(promise).rejects.toThrow(/timed out after 5000ms/);
-      } finally {
-        vi.useRealTimers();
-      }
-    });
-
-    it('does not fire the timeout when the request completes promptly', async () => {
-      vi.useFakeTimers();
-      try {
-        mockFetch([
-          LOGIN_INIT,
-          LOGIN_SUCCESS,
-          { status: 200, body: { ok: true } },
-        ]);
-        const client = new OFWClient();
-        const result = await client.request<{ ok: boolean }>('GET', '/pub/v1/test');
-        // Advance well past the default timeout to prove the timer is cleared.
-        await vi.advanceTimersByTimeAsync(60_000);
-        expect(result).toEqual({ ok: true });
-      } finally {
-        vi.useRealTimers();
-      }
-    });
-
-    it('binaries also respect the timeout', async () => {
-      vi.useFakeTimers();
-      try {
-        mockLoginThenHang();
-        const client = new OFWClient();
-        const promise = client.requestBinary('GET', '/pub/v1/myfiles/1/data');
-        promise.catch(() => undefined);
-        await vi.advanceTimersByTimeAsync(30_000);
-        await expect(promise).rejects.toThrow(/timed out after 30000ms/);
-      } finally {
-        vi.useRealTimers();
-      }
-    });
-
-    it('propagates non-abort fetch errors (e.g. ECONNREFUSED) unchanged', async () => {
-      let call = 0;
-      vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
-        call++;
-        if (call === 1) {
-          return {
-            ok: false, status: 303, statusText: '303',
-            headers: {
-              get: (k: string) => k.toLowerCase() === 'set-cookie' ? 'SESSION=x' : null,
-              getSetCookie: () => ['SESSION=x'],
-            },
-            text: async () => '', json: async () => null,
-          } as unknown as Response;
-        }
-        if (call === 2) {
-          return {
-            ok: true, status: 200, statusText: '200',
-            headers: {
-              get: (k: string) => k.toLowerCase() === 'content-type' ? 'application/json' : null,
-              getSetCookie: () => [],
-            },
-            text: async () => JSON.stringify({ auth: MOCK_TOKEN }),
-            json: async () => ({ auth: MOCK_TOKEN }),
-          } as unknown as Response;
-        }
-        throw new Error('connect ECONNREFUSED');
-      });
-      const client = new OFWClient();
-      await expect(client.request('GET', '/pub/v1/test')).rejects.toThrow('connect ECONNREFUSED');
-    });
-
-    it('logs the timeout and error paths via OFW_DEBUG_LOG when enabled', async () => {
-      const originalDebug = process.env.OFW_DEBUG_LOG;
-      process.env.OFW_DEBUG_LOG = '1';
-      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      vi.useFakeTimers();
-      try {
-        mockLoginThenHang();
-        const client = new OFWClient();
-        const promise = client.request('GET', '/pub/v1/timeout-check');
-        promise.catch(() => undefined);
-        await vi.advanceTimersByTimeAsync(30_000);
-        await expect(promise).rejects.toThrow(/timed out after 30000ms/);
-
-        const lines = errSpy.mock.calls.map((c) => String(c[0]));
-        expect(lines.some((l) => l.includes('⏱ TIMEOUT after') && l.includes('/pub/v1/timeout-check'))).toBe(true);
-      } finally {
-        vi.useRealTimers();
-        if (originalDebug === undefined) delete process.env.OFW_DEBUG_LOG;
-        else process.env.OFW_DEBUG_LOG = originalDebug;
-      }
-    });
-
-    it('logs non-abort fetch errors via OFW_DEBUG_LOG when enabled', async () => {
-      const originalDebug = process.env.OFW_DEBUG_LOG;
-      process.env.OFW_DEBUG_LOG = '1';
-      const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-      try {
-        let call = 0;
-        vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
-          call++;
-          if (call === 1) {
-            return {
-              ok: false, status: 303, statusText: '303',
-              headers: {
-              get: (k: string) => k.toLowerCase() === 'set-cookie' ? 'SESSION=x' : null,
-              getSetCookie: () => ['SESSION=x'],
-            },
-              text: async () => '', json: async () => null,
-            } as unknown as Response;
-          }
-          if (call === 2) {
-            return {
-              ok: true, status: 200, statusText: '200',
-              headers: {
-              get: (k: string) => k.toLowerCase() === 'content-type' ? 'application/json' : null,
-              getSetCookie: () => [],
-            },
-              text: async () => JSON.stringify({ auth: MOCK_TOKEN }),
-              json: async () => ({ auth: MOCK_TOKEN }),
-            } as unknown as Response;
-          }
-          throw new Error('socket hang up');
-        });
-        const client = new OFWClient();
-        await expect(client.request('GET', '/pub/v1/err-check')).rejects.toThrow('socket hang up');
-
-        const lines = errSpy.mock.calls.map((c) => String(c[0]));
-        expect(lines.some((l) => l.includes('✗ socket hang up') && l.includes('/pub/v1/err-check'))).toBe(true);
-      } finally {
-        if (originalDebug === undefined) delete process.env.OFW_DEBUG_LOG;
-        else process.env.OFW_DEBUG_LOG = originalDebug;
-      }
+    await expect(client.get('/tours')).rejects.toMatchObject({
+      message: expect.stringContaining('GetYourGuide error 429'),
+      hint: expect.stringContaining('Rate limited'),
     });
   });
 
-  describe('OFW_DEBUG_LOG', () => {
-    let originalDebug: string | undefined;
-    let errSpy: ReturnType<typeof vi.spyOn>;
-
-    beforeEach(() => {
-      originalDebug = process.env.OFW_DEBUG_LOG;
-      process.env.OFW_DEBUG_LOG = '1';
-      errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    });
-
-    afterEach(() => {
-      if (originalDebug === undefined) delete process.env.OFW_DEBUG_LOG;
-      else process.env.OFW_DEBUG_LOG = originalDebug;
-    });
-
-    it('logs request method/url/headers/body and response status+body when enabled', async () => {
-      mockFetch([
-        LOGIN_INIT,
-        LOGIN_SUCCESS,
-        { status: 200, body: { ok: true } },
-      ]);
-      const client = new OFWClient();
-      await client.request('POST', '/pub/v3/messages', { foo: 'bar' });
-
-      const lines = errSpy.mock.calls.map((c) => String(c[0]));
-      const debugLines = lines.filter((l) => l.startsWith('[ofw-debug]'));
-      expect(debugLines.some((l) => l.includes('→ POST'))).toBe(true);
-      expect(debugLines.some((l) => l.includes('"foo":"bar"'))).toBe(true);
-      // Authorization header is redacted (only the prefix is logged).
-      expect(debugLines.some((l) => l.includes('"Authorization":"Bearer ') && l.includes('…"'))).toBe(true);
-      expect(debugLines.some((l) => l.includes('← 200'))).toBe(true);
-      expect(debugLines.some((l) => l.includes('response body:'))).toBe(true);
-    });
-
-    it('logs FormData payloads as a key summary, not the full multipart contents', async () => {
-      mockFetch([
-        LOGIN_INIT,
-        LOGIN_SUCCESS,
-        { status: 200, body: {} },
-      ]);
-      const form = new FormData();
-      form.append('messageIds', '42');
-      form.append('messageIds', '43');
-      const client = new OFWClient();
-      await client.request('DELETE', '/pub/v1/messages', form);
-
-      const lines = errSpy.mock.calls.map((c) => String(c[0]));
-      expect(lines.some((l) => l.includes('<FormData entries=messageIds,messageIds>'))).toBe(true);
-    });
-
-    it('logs <none> for a bodyless request', async () => {
-      mockFetch([
-        LOGIN_INIT,
-        LOGIN_SUCCESS,
-        { status: 200, body: {} },
-      ]);
-      const client = new OFWClient();
-      await client.request('GET', '/pub/v1/test');
-
-      const lines = errSpy.mock.calls.map((c) => String(c[0]));
-      expect(lines.some((l) => l.includes('body: <none>'))).toBe(true);
-    });
-
-    it('marks retried requests in the log', async () => {
-      mockFetch([
-        LOGIN_INIT,
-        LOGIN_SUCCESS,
-        { status: 401, body: {} },
-        LOGIN_INIT,
-        LOGIN_SUCCESS,
-        { status: 200, body: { ok: true } },
-      ]);
-      const client = new OFWClient();
-      await client.request('GET', '/pub/v1/test');
-      const lines = errSpy.mock.calls.map((c) => String(c[0]));
-      expect(lines.some((l) => l.includes('(retry)'))).toBe(true);
-    });
-
-    it('logs <empty> when response body is genuinely empty', async () => {
-      // Hand-stub the API call's text() to return '' so we exercise the
-      // `text || '<empty>'` branch in client.ts (the shared mockFetch
-      // JSON.stringifies its body, which never yields an empty string).
-      let call = 0;
-      vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
-        call++;
-        if (call === 1) {
-          return {
-            ok: false, status: 303, statusText: '303',
-            headers: {
-              get: (k: string) => k.toLowerCase() === 'set-cookie' ? 'SESSION=x' : null,
-              getSetCookie: () => ['SESSION=x'],
-            },
-            text: async () => '', json: async () => null,
-          } as unknown as Response;
-        }
-        if (call === 2) {
-          return {
-            ok: true, status: 200, statusText: '200',
-            headers: {
-              get: (k: string) => k.toLowerCase() === 'content-type' ? 'application/json' : null,
-              getSetCookie: () => [],
-            },
-            text: async () => JSON.stringify({ auth: MOCK_TOKEN }),
-            json: async () => ({ auth: MOCK_TOKEN }),
-          } as unknown as Response;
-        }
-        return {
-          ok: true, status: 200, statusText: '200',
-          headers: { get: () => null },
-          text: async () => '',
-        } as unknown as Response;
-      });
-      const client = new OFWClient();
-      await client.request('GET', '/pub/v1/test');
-      const lines = errSpy.mock.calls.map((c) => String(c[0]));
-      expect(lines.some((l) => l === '[ofw-debug] response body: <empty>')).toBe(true);
+  it('throws an actionable auth error on 401', async () => {
+    process.env.GYG_API_KEY = 'bad-key';
+    const { client } = makeClient([jsonResponse({ error: 'invalid key' }, 401)]);
+    await expect(client.get('/tours')).rejects.toMatchObject({
+      message: expect.stringContaining('GetYourGuide error 401'),
+      hint: expect.stringContaining('partner tier'),
     });
   });
-});
 
-describe('OFWClient.requestBinary', () => {
-  beforeEach(() => {
-    process.env.OFW_USERNAME = 'test@example.com';
-    process.env.OFW_PASSWORD = 'testpass';
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-
-  it('returns body as Buffer with content-type and parsed filename', async () => {
-    mockFetch([
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 200, bytes: PNG_BYTES, headers: {
-        'content-type': 'image/png',
-        'content-disposition': 'attachment; filename="kid.png"',
-      } },
-    ]);
-
-    const client = new OFWClient();
-    const r = await client.requestBinary('GET', '/pub/v1/myfiles/1/data');
-
-    expect(Buffer.isBuffer(r.body)).toBe(true);
-    expect(r.body.equals(Buffer.from(PNG_BYTES))).toBe(true);
-    expect(r.contentType).toBe('image/png');
-    expect(r.suggestedFileName).toBe('kid.png');
-  });
-
-  it('sends Authorization, ofw-* headers, and Accept: application/octet-stream', async () => {
-    const spy = mockFetch([
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 200, bytes: PNG_BYTES },
-    ]);
-
-    const client = new OFWClient();
-    await client.requestBinary('GET', '/pub/v1/myfiles/1/data');
-
-    const init = spy.mock.calls[2][1] as RequestInit;
-    const h = init.headers as Record<string, string>;
-    expect(h['Authorization']).toBe(`Bearer ${MOCK_TOKEN}`);
-    expect(h['Accept']).toBe('application/octet-stream');
-    expect(h['ofw-client']).toBe('WebApplication');
-    expect(h['ofw-version']).toBe('1.0.0');
-    expect(h['Content-Type']).toBeUndefined();
-  });
-
-  it('re-logs in and retries on 401', async () => {
-    const spy = mockFetch([
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 401, body: {} },
-      LOGIN_INIT,
-      { ...LOGIN_SUCCESS, body: { auth: 'new-token', redirectUrl: '/' } },
-      { status: 200, bytes: PNG_BYTES },
-    ]);
-
-    const client = new OFWClient();
-    const r = await client.requestBinary('GET', '/pub/v1/myfiles/1/data');
-    expect(r.body.length).toBe(PNG_BYTES.length);
-    expect(spy).toHaveBeenCalledTimes(6);
-  });
-
-  it('throws on a second 401', async () => {
-    mockFetch([
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 401, body: {} },
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 401, body: {} },
-    ]);
-
-    const client = new OFWClient();
-    await expect(client.requestBinary('GET', '/pub/v1/myfiles/1/data')).rejects.toThrow('401');
-  });
-
-  it('waits 2s and retries on 429', async () => {
-    vi.useFakeTimers();
-    const spy = mockFetch([
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 429, body: {} },
-      { status: 200, bytes: PNG_BYTES },
-    ]);
-
-    const client = new OFWClient();
-    const promise = client.requestBinary('GET', '/pub/v1/myfiles/1/data');
-    await vi.advanceTimersByTimeAsync(2000);
-    const r = await promise;
-
-    expect(r.body.length).toBe(PNG_BYTES.length);
-    expect(spy).toHaveBeenCalledTimes(4);
-    vi.useRealTimers();
-  });
-
-  it('throws "Rate limited" on a second 429 (matches request() behavior)', async () => {
-    vi.useFakeTimers();
-    mockFetch([
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 429, body: {} },
-      { status: 429, body: {} },
-    ]);
-
-    const client = new OFWClient();
-    const promise = client.requestBinary('GET', '/pub/v1/myfiles/1/data');
-    promise.catch(() => {});
-    await vi.advanceTimersByTimeAsync(2000);
-    await expect(promise).rejects.toThrow('Rate limited');
-    vi.useRealTimers();
-  });
-
-  it('throws on non-2xx response', async () => {
-    mockFetch([
-      LOGIN_INIT,
-      LOGIN_SUCCESS,
-      { status: 500, body: {} },
-    ]);
-
-    const client = new OFWClient();
-    await expect(client.requestBinary('GET', '/pub/v1/myfiles/1/data')).rejects.toThrow('500');
-  });
-
-  describe('Content-Disposition filename parsing', () => {
-    async function downloadWithCD(cd: string | undefined): Promise<string | null> {
-      const headers: Record<string, string> = { 'content-type': 'application/octet-stream' };
-      if (cd !== undefined) headers['content-disposition'] = cd;
-      mockFetch([
-        LOGIN_INIT,
-        LOGIN_SUCCESS,
-        { status: 200, bytes: new Uint8Array([1, 2, 3]), headers },
-      ]);
-      const client = new OFWClient();
-      const r = await client.requestBinary('GET', '/pub/v1/myfiles/1/data');
-      return r.suggestedFileName;
-    }
-
-    it('decodes RFC 6266 filename*=UTF-8\'\'percent-encoded', async () => {
-      expect(await downloadWithCD("attachment; filename*=UTF-8''Hello%20World.pdf")).toBe('Hello World.pdf');
-    });
-
-    it('decodes filename*= without the UTF-8\'\' prefix', async () => {
-      expect(await downloadWithCD('attachment; filename*=Hello%20World.pdf')).toBe('Hello World.pdf');
-    });
-
-    it('prefers filename*= over legacy filename=', async () => {
-      expect(await downloadWithCD(
-        'attachment; filename="legacy.pdf"; filename*=UTF-8\'\'fancy%20name.pdf',
-      )).toBe('fancy name.pdf');
-    });
-
-    it('matches legacy quoted filename', async () => {
-      expect(await downloadWithCD('attachment; filename="legacy file.pdf"')).toBe('legacy file.pdf');
-    });
-
-    it('matches legacy unquoted filename', async () => {
-      expect(await downloadWithCD('attachment; filename=legacy.pdf')).toBe('legacy.pdf');
-    });
-
-    it('falls back to the raw value when filename*= has broken percent-encoding', async () => {
-      // %ZZ is invalid → decodeURIComponent throws → we keep the raw token.
-      expect(await downloadWithCD("attachment; filename*=UTF-8''bad%ZZname.pdf")).toBe('bad%ZZname.pdf');
-    });
-
-    it('returns null when there is no Content-Disposition header', async () => {
-      expect(await downloadWithCD(undefined)).toBeNull();
-    });
-
-    it('returns null when Content-Disposition has no filename', async () => {
-      expect(await downloadWithCD('attachment')).toBeNull();
+  it('throws the same auth error shape on 403', async () => {
+    process.env.GYG_API_KEY = 'bad-key';
+    const { client } = makeClient([jsonResponse({}, 403)]);
+    await expect(client.get('/tours')).rejects.toMatchObject({
+      message: expect.stringContaining('GetYourGuide error 403'),
     });
   });
-});
 
-describe('OFWClient — config/auth fallback branches', () => {
-  beforeEach(() => {
-    process.env.OFW_USERNAME = 'test@example.com';
-    process.env.OFW_PASSWORD = 'testpass';
-  });
-  afterEach(() => vi.restoreAllMocks());
-
-  it('reads OFW_REQUEST_TIMEOUT_MS (valid → used, invalid → default)', async () => {
-    const orig = process.env.OFW_REQUEST_TIMEOUT_MS;
-    try {
-      mockFetch([LOGIN_INIT, LOGIN_SUCCESS, { status: 200, body: {} }, { status: 200, body: {} }]);
-      const client = new OFWClient();
-      process.env.OFW_REQUEST_TIMEOUT_MS = '5000';
-      await client.request('GET', '/pub/v1/a'); // valid number → `? n`
-      process.env.OFW_REQUEST_TIMEOUT_MS = 'not-a-number';
-      await client.request('GET', '/pub/v1/b'); // invalid → `: DEFAULT`
-    } finally {
-      if (orig === undefined) delete process.env.OFW_REQUEST_TIMEOUT_MS;
-      else process.env.OFW_REQUEST_TIMEOUT_MS = orig;
-    }
+  it('formats other upstream errors through formatApiError', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    const { client } = makeClient([jsonResponse({ error: 'boom' }, 500)]);
+    await expect(client.get('/tours/1')).rejects.toMatchObject({
+      message: expect.stringContaining('GetYourGuide error 500 for GET /tours/1'),
+    });
   });
 
-  it('falls back to a TTL-based token expiry when resolveAuth returns no expiresAt', async () => {
-    const auth = await import('../src/auth.js');
-    const spy = vi.spyOn(auth, 'resolveAuth').mockResolvedValue({ token: 'tok', expiresAt: undefined });
-    mockFetch([{ status: 200, body: { data: 'ok' } }]); // resolveAuth mocked → no login fetches
-    const client = new OFWClient();
-    await client.request('GET', '/pub/v1/x');
-    expect(spy).toHaveBeenCalled();
+  it('throws an actionable error on a non-JSON 2xx body', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    const { client } = makeClient([new Response('<html>interstitial</html>', { status: 200 })]);
+    await expect(client.get('/tours')).rejects.toMatchObject({
+      message: expect.stringContaining('non-JSON'),
+      hint: expect.stringContaining('GYG_BASE_URL'),
+    });
+  });
+
+  it('uses the real global fetch and setTimeout sleep by default', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({}, 429, { 'retry-after': '0' }))
+      .mockResolvedValueOnce(jsonResponse({ ok: 1 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new GYGClient();
+    const result = await client.get('/tours');
+    expect(result).toEqual({ ok: 1 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
