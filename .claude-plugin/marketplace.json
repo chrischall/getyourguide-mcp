@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "GetYourGuide tools for Claude Code",
-    "version": "0.0.0"
+    "version": "1.0.0"
   },
   "plugins": [
     {
@@ -14,7 +14,7 @@
       "displayName": "GetYourGuide",
       "source": "./",
       "description": "GetYourGuide tours and activities for Claude — search, details, options, and reviews via MCP",
-      "version": "0.0.0",
+      "version": "1.0.0",
       "author": {
         "name": "Chris Chall"
       },

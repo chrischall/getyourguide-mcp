@@ -1,6 +1,6 @@
 {
   "name": "getyourguide-mcp",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "license": "MIT",
   "mcpName": "io.github.chrischall/getyourguide-mcp",
   "description": "GetYourGuide MCP server for Claude — search tours and activities via the GetYourGuide Partner API. Developed and maintained by AI (Claude Code)",
