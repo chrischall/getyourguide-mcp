@@ -1,122 +1,96 @@
-import { expandPath as expandPathUtil, rawTextResult, textResult } from '@chrischall/mcp-utils';
+// Helpers shared by the tool registrars: the JSON tool-result wrapper, the
+// zod arg atoms every listing tool repeats (currency / language / pagination),
+// and the opt-in compact projection for verbose tour listings.
+import { textResult } from '@chrischall/mcp-utils';
 import { z } from 'zod';
-import type { Recipient } from '../cache.js';
-import type { OFWClient } from '../client.js';
-import { parseOFW } from '../validate.js';
 
-// Pretty-printed JSON tool result. Thin wrapper over @chrischall/mcp-utils'
-// `textResult` so the rest of the codebase keeps the local name.
+/**
+ * Pretty-printed JSON tool result. Thin wrapper over @chrischall/mcp-utils'
+ * `textResult` so the rest of the codebase keeps the local name.
+ */
 export const jsonResponse = textResult;
 
-// Raw-string tool result. Wrapper over @chrischall/mcp-utils' `rawTextResult`.
-export const textResponse = rawTextResult;
+/** Per-call currency override (falls back to the GYG_CURRENCY env default). */
+export const currencyArg = z
+  .string()
+  .optional()
+  .describe('Currency for prices, ISO 4217 (e.g. USD, EUR). Defaults to GYG_CURRENCY when set.');
 
-// OFW API shape for `recipients[]` on message/draft list and detail
-// responses. Used wherever we validate the response of a `/pub/v3/messages*`
-// call. Loose: unknown keys pass through (and survive into cached listData).
-export const ApiRecipientSchema = z.looseObject({
-  user: z.looseObject({ id: z.number().optional(), name: z.string().optional() }).optional(),
-  viewed: z.looseObject({ dateTime: z.string() }).nullable().optional(),
+/** Per-call content-language override (falls back to GYG_LANGUAGE). */
+export const languageArg = z
+  .string()
+  .optional()
+  .describe('Content language (e.g. en, de). Defaults to GYG_LANGUAGE when set.');
+
+/** Offset/limit pagination args shared by every listing tool. */
+export const paginationArgs = {
+  limit: z.number().int().min(1).max(100).default(20).describe('Maximum number of items to return (1-100).'),
+  offset: z.number().int().min(0).default(0).describe('Number of items to skip (0-based).'),
+} as const;
+
+/**
+ * Escape hatch for API drift: extra query params merged verbatim into the
+ * request, so a renamed/undocumented Partner API param is usable without a
+ * code change (the response shapes here were not live-verifiable at build
+ * time — see docs/GETYOURGUIDE-API.md).
+ */
+export const extraParamsArg = z
+  .record(z.string(), z.string())
+  .optional()
+  .describe('Extra raw query params to merge into the request verbatim (escape hatch for API drift).');
+
+/**
+ * Fields kept by the compact tour projection — documented summary fields
+ * only; everything fat (picture size variants, coordinates, marketing blobs)
+ * is dropped. Absent fields are simply omitted, so drift cannot inject
+ * `undefined`s.
+ */
+export const COMPACT_TOUR_KEYS = [
+  'tour_id',
+  'title',
+  'abstract',
+  'url',
+  'price',
+  'overall_rating',
+  'number_of_ratings',
+  'durations',
+  'categories',
+  'locations',
+] as const;
+
+/** Project one raw tour record down to {@link COMPACT_TOUR_KEYS}. */
+export function compactTour(tour: unknown): Record<string, unknown> {
+  const record = (tour ?? {}) as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const key of COMPACT_TOUR_KEYS) {
+    if (record[key] !== undefined) out[key] = record[key];
+  }
+  return out;
+}
+
+/**
+ * Compact a `{ _metadata, data: { tours: [...] } }` listing envelope. When the
+ * expected array isn't where we expect it (API drift), warn to stderr and
+ * return the RAW response rather than an empty/wrong projection.
+ */
+export function compactTours(raw: unknown): unknown {
+  const tours = (raw as { data?: { tours?: unknown } } | null | undefined)?.data?.tours;
+  if (!Array.isArray(tours)) {
+    console.error(
+      '[getyourguide-mcp] WARNING: expected data.tours array is missing — returning the raw response (compact projection skipped).',
+    );
+    return raw;
+  }
+  const meta = (raw as { _metadata?: unknown })._metadata;
+  return { _metadata: meta, tours: tours.map(compactTour) };
+}
+
+/**
+ * Loose envelope for tour-listing responses — validates only the path the
+ * compact projection reads; unknown fields pass through untouched.
+ */
+export const ToursEnvelope = z.looseObject({
+  data: z.looseObject({
+    tours: z.array(z.unknown()),
+  }),
 });
-export type ApiRecipient = z.infer<typeof ApiRecipientSchema>;
-
-// Translates OFW API recipient shape into the cache's normalized Recipient.
-// Used wherever we surface or persist recipients (sync, get_message, send,
-// save_draft) — all five call sites had near-identical inline mappings.
-export function mapRecipients(items: ApiRecipient[] | undefined | null): Recipient[] {
-  return (items ?? []).map((r) => ({
-    userId: r.user?.id ?? 0,
-    name: r.user?.name ?? '',
-    viewedAt: r.viewed?.dateTime ?? null,
-  }));
-}
-
-// Expand a user-provided path: ~ → home, relative → absolute. Re-exports
-// @chrischall/mcp-utils' `expandPath`.
-export const expandPath = expandPathUtil;
-
-/**
- * Best-effort check that OFW actually persisted what we posted. OFW's
- * draft-update path is known to silently no-op while echoing success in the
- * POST response, so callers re-GET the detail and compare it to what was
- * sent. Containment (not equality) because OFW legitimately transforms
- * content — replies get the original message appended to the body
- * (includeOriginal) and may get a subject prefix. Returns a WARNING string
- * when the persisted content can't be confirmed to contain what was sent,
- * else null.
- */
-export function verifyWriteLanded(
-  kind: 'message' | 'draft',
-  sent: { subject: string; body: string },
-  persisted: { subject?: string; body?: string },
-): string | null {
-  const mismatches: string[] = [];
-  if (typeof persisted.subject !== 'string' || !persisted.subject.includes(sent.subject)) {
-    mismatches.push('subject');
-  }
-  if (typeof persisted.body !== 'string' || !persisted.body.includes(sent.body)) {
-    mismatches.push('body');
-  }
-  if (mismatches.length === 0) return null;
-  return `WARNING: the ${kind} re-fetched from OFW does not contain the ${mismatches.join(' and ')} that was posted — OFW may have silently dropped or altered the write. Verify the ${kind} on ourfamilywizard.com before relying on it.`;
-}
-
-// POST /pub/v3/messages response: minimal, `{entityId: <id>}` or legacy
-// `{id: <id>}`, sometimes an empty body (→ null). Validated STRICT: a
-// mistyped id (e.g. entityId as a string) must throw rather than silently
-// degrade into the "unconfirmed send" path when the write actually landed.
-// Absence of both ids stays legal — callers handle it with a WARNING.
-const PostMessagesResponseSchema = z.looseObject({
-  id: z.number().optional(),
-  entityId: z.number().optional(),
-}).nullable();
-
-/**
- * POST a payload to /pub/v3/messages, then immediately GET the detail
- * endpoint for the resulting message id. This is the only correct way to
- * populate the cache after `ofw_send_message` or `ofw_save_draft`:
- *
- *  - OFW's POST response is minimal (typically just `{entityId: <id>}`
- *    or sometimes legacy `{id: <id>}`), so we can't build a full row
- *    from it directly.
- *  - Worse, on draft updates OFW returns the same success shape even
- *    when the server silently no-ops, so the GET is also how we verify
- *    the write landed (callers compare detail.body to args.body).
- *
- * Both responses are validated STRICT against `detailSchema` / the POST
- * schema (this is the write-verification boundary — issue #83); `ctx`
- * names the calling tool in the error message.
- *
- * Returns a discriminated union so callers can narrow with
- * `if (result.id !== null)`. When id is null (no id field in the
- * response — never observed in production, but defensive), `raw`
- * carries the POST response so the caller can still surface it.
- */
-export async function postMessageAndRefetch<S extends z.ZodType>(
-  client: OFWClient,
-  payload: unknown,
-  detailSchema: S,
-  ctx: string,
-): Promise<
-  | { id: number; detail: z.output<S>; raw: unknown }
-  | { id: null; detail: null; raw: unknown }
-> {
-  const raw = parseOFW(
-    PostMessagesResponseSchema,
-    await client.request('POST', '/pub/v3/messages', payload),
-    `POST /pub/v3/messages (${ctx})`,
-    'strict',
-  );
-  const id =
-    typeof raw?.id === 'number' ? raw.id
-    : typeof raw?.entityId === 'number' ? raw.entityId
-    : null;
-  if (id === null) return { id: null, detail: null, raw };
-  const detail = parseOFW(
-    detailSchema,
-    await client.request('GET', `/pub/v3/messages/${id}`),
-    `GET /pub/v3/messages/{id} (${ctx})`,
-    'strict',
-  );
-  return { id, detail, raw };
-}

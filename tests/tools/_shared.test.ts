@@ -1,119 +1,85 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { isAbsolute } from 'node:path';
-import { expandPath, jsonResponse, mapRecipients, textResponse, verifyWriteLanded } from '../../src/tools/_shared.js';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { compactTour, compactTours } from '../../src/tools/_shared.js';
 
-describe('jsonResponse', () => {
-  it('wraps a payload as a single text content block with pretty-printed JSON', () => {
-    const result = jsonResponse({ foo: 'bar', n: 1 });
-    expect(result.content).toHaveLength(1);
-    expect(result.content[0].type).toBe('text');
-    expect(result.content[0].text).toBe('{\n  "foo": "bar",\n  "n": 1\n}');
+afterEach(() => vi.restoreAllMocks());
+
+describe('compactTour', () => {
+  it('keeps only the documented summary fields', () => {
+    const fat = {
+      tour_id: 23776,
+      title: 'Louvre skip-the-line',
+      abstract: 'See the Mona Lisa',
+      url: 'https://www.getyourguide.com/x-t23776',
+      price: { values: { amount: 25 } },
+      overall_rating: 4.7,
+      number_of_ratings: 1234,
+      durations: [{ duration: 2, unit: 'hour' }],
+      categories: [{ category_id: 1, name: 'Museums' }],
+      locations: [{ location_id: 57, name: 'Paris' }],
+      pictures: [{ url: 'huge.jpg' }],
+      coordinates: { lat: 48.8, long: 2.3 },
+      marketing_blob: 'x'.repeat(5000),
+    };
+    const slim = compactTour(fat);
+    expect(Object.keys(slim).sort()).toEqual(
+      [
+        'tour_id',
+        'title',
+        'abstract',
+        'url',
+        'price',
+        'overall_rating',
+        'number_of_ratings',
+        'durations',
+        'categories',
+        'locations',
+      ].sort(),
+    );
+    expect(slim.tour_id).toBe(23776);
   });
 
-  it('serializes arrays and nested objects', () => {
-    const result = jsonResponse([{ a: 1 }, { a: 2 }]);
-    expect(JSON.parse(result.content[0].text)).toEqual([{ a: 1 }, { a: 2 }]);
-  });
-});
-
-describe('textResponse', () => {
-  it('wraps a string as a single text content block (no JSON-encoding)', () => {
-    const result = textResponse('plain message');
-    expect(result.content).toHaveLength(1);
-    expect(result.content[0]).toEqual({ type: 'text', text: 'plain message' });
-  });
-});
-
-describe('mapRecipients', () => {
-  it('returns [] for null / undefined / empty input', () => {
-    expect(mapRecipients(null)).toEqual([]);
-    expect(mapRecipients(undefined)).toEqual([]);
-    expect(mapRecipients([])).toEqual([]);
-  });
-
-  it('maps the standard OFW recipient shape into the cache Recipient shape', () => {
-    expect(mapRecipients([
-      { user: { id: 1, name: 'Alice' }, viewed: { dateTime: '2026-05-01T00:00:00Z' } },
-      { user: { id: 2, name: 'Bob' }, viewed: null },
-    ])).toEqual([
-      { userId: 1, name: 'Alice', viewedAt: '2026-05-01T00:00:00Z' },
-      { userId: 2, name: 'Bob', viewedAt: null },
-    ]);
-  });
-
-  it('defaults userId to 0 and name to empty string when user is missing (defensive)', () => {
-    // OFW occasionally returns recipients with a partial or missing user — the
-    // null-safe fallbacks here exist to keep cache writes from blowing up.
-    expect(mapRecipients([
-      { user: undefined, viewed: { dateTime: '2026-05-01T00:00:00Z' } },
-      { user: { id: undefined, name: undefined } },
-      {},
-    ])).toEqual([
-      { userId: 0, name: '', viewedAt: '2026-05-01T00:00:00Z' },
-      { userId: 0, name: '', viewedAt: null },
-      { userId: 0, name: '', viewedAt: null },
-    ]);
+  it('omits absent fields and tolerates null items', () => {
+    expect(compactTour({ title: 'only-title' })).toEqual({ title: 'only-title' });
+    expect(compactTour(null)).toEqual({});
   });
 });
 
-describe('expandPath', () => {
-  let originalHome: string | undefined;
-
-  beforeEach(() => { originalHome = process.env.HOME; });
-  afterEach(() => {
-    if (originalHome === undefined) delete process.env.HOME;
-    else process.env.HOME = originalHome;
+describe('compactTours', () => {
+  it('projects data.tours and carries _metadata through', () => {
+    const raw = {
+      _metadata: { totalCount: 2 },
+      data: { tours: [{ tour_id: 1, pictures: ['fat'] }, { tour_id: 2 }] },
+    };
+    expect(compactTours(raw)).toEqual({
+      _metadata: { totalCount: 2 },
+      tours: [{ tour_id: 1 }, { tour_id: 2 }],
+    });
   });
 
-  it('expands ~/ to $HOME', () => {
-    process.env.HOME = '/home/alice';
-    expect(expandPath('~/Downloads/file.pdf')).toBe('/home/alice/Downloads/file.pdf');
+  it('omits _metadata when the envelope has none', () => {
+    const result = compactTours({ data: { tours: [] } }) as { _metadata?: unknown; tours: unknown[] };
+    expect(result.tours).toEqual([]);
+    expect(result._metadata).toBeUndefined();
   });
 
-  it('treats absolute paths as-is', () => {
-    expect(expandPath('/tmp/foo/bar.txt')).toBe('/tmp/foo/bar.txt');
+  it('warns and returns the raw response when data.tours is missing', () => {
+    const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const raw = { unexpected: true };
+    expect(compactTours(raw)).toBe(raw);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain('data.tours');
   });
 
-  it('resolves relative paths against cwd to an absolute path', () => {
-    const result = expandPath('relative/path.txt');
-    expect(isAbsolute(result)).toBe(true);
-    expect(result.endsWith('/relative/path.txt')).toBe(true);
+  it('warns when data.tours is not an array', () => {
+    const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const raw = { data: { tours: 'nope' } };
+    expect(compactTours(raw)).toBe(raw);
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
-  it('does not strip the leading slash when HOME is unset (regression guard)', () => {
-    delete process.env.HOME;
-    // With HOME unset the join collapses to an absolute path starting at /
-    // — the path stays absolute rather than becoming a relative one.
-    expect(isAbsolute(expandPath('~/foo'))).toBe(true);
-  });
-});
-
-describe('verifyWriteLanded', () => {
-  const sent = { subject: 'Pickup time', body: 'I can do 3pm on Friday.' };
-
-  it('returns null when OFW echoes the content exactly', () => {
-    expect(verifyWriteLanded('message', sent, { ...sent })).toBeNull();
-  });
-
-  it('returns null when OFW transforms by containment (subject prefix, original appended to body)', () => {
-    expect(verifyWriteLanded('message', sent, {
-      subject: 'RE: Pickup time',
-      body: 'I can do 3pm on Friday.\n\n--- Original message ---\nCan you do Friday?',
-    })).toBeNull();
-  });
-
-  it('warns on subject mismatch only', () => {
-    const warning = verifyWriteLanded('draft', sent, { subject: 'something else', body: sent.body });
-    expect(warning).toMatch(/the draft re-fetched from OFW does not contain the subject that was posted/);
-  });
-
-  it('warns on body mismatch only', () => {
-    const warning = verifyWriteLanded('message', sent, { subject: sent.subject, body: 'dropped' });
-    expect(warning).toMatch(/the message re-fetched from OFW does not contain the body that was posted/);
-  });
-
-  it('warns on both when the detail carries neither field', () => {
-    const warning = verifyWriteLanded('message', sent, {});
-    expect(warning).toMatch(/does not contain the subject and body that was posted/);
+  it('tolerates a null response', () => {
+    const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(compactTours(null)).toBeNull();
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 });

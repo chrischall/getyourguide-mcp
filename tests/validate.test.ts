@@ -1,43 +1,34 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { z } from 'zod';
-import { parseOFW } from '../src/validate.js';
-
-const Schema = z.looseObject({
-  id: z.number(),
-  subject: z.string().optional(),
-});
+import { parseGYG } from '../src/validate.js';
 
 afterEach(() => vi.restoreAllMocks());
 
-describe('parseOFW', () => {
-  it('returns the parsed value on success, preserving unknown keys (loose)', () => {
-    const out = parseOFW(Schema, { id: 1, subject: 'S', extra: 'kept' }, 'GET /x');
-    expect(out).toEqual({ id: 1, subject: 'S', extra: 'kept' });
+const Envelope = z.looseObject({
+  data: z.looseObject({ tours: z.array(z.unknown()) }),
+});
+
+describe('parseGYG', () => {
+  it('returns the parsed value on success, preserving unknown fields', () => {
+    const raw = { data: { tours: [{ tour_id: 1 }], extra: 'kept' }, _metadata: { count: 1 } };
+    const result = parseGYG(Envelope, raw, 'GET /tours');
+    expect(result).toEqual(raw);
   });
 
-  it('lenient (default): warns to stderr and returns the raw value on mismatch', () => {
-    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const raw = { id: 'not-a-number', subject: 5 };
-    const out = parseOFW(Schema, raw, 'GET /pub/v3/messages');
-    expect(out).toBe(raw); // raw passthrough, not a partial parse
-    expect(err).toHaveBeenCalledTimes(1);
-    const msg = err.mock.calls[0][0] as string;
-    expect(msg).toContain('OFW response for GET /pub/v3/messages failed validation');
-    expect(msg).toContain('id:');
-    expect(msg).toContain('subject:');
+  it('warns to stderr and returns the raw response on mismatch', () => {
+    const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const raw = { data: { tours: 'not-an-array' } };
+    const result = parseGYG(Envelope, raw, 'GET /tours');
+    expect(result).toBe(raw);
+    expect(warn).toHaveBeenCalledTimes(1);
+    const message = warn.mock.calls[0][0] as string;
+    expect(message).toContain('GET /tours');
+    expect(message).toContain('data.tours');
   });
 
-  it('strict: throws with the endpoint context and issue paths', () => {
-    expect(() => parseOFW(Schema, { id: 'x' }, 'POST /pub/v3/messages', 'strict'))
-      .toThrow(/OFW response for POST \/pub\/v3\/messages failed validation: id:/);
-  });
-
-  it('labels root-level mismatches as (root)', () => {
-    expect(() => parseOFW(Schema, 'a string', 'GET /x', 'strict'))
-      .toThrow(/\(root\):/);
-  });
-
-  it('strict success returns the parsed value', () => {
-    expect(parseOFW(Schema, { id: 7 }, 'GET /x', 'strict')).toEqual({ id: 7 });
+  it('labels root-level issues as (root)', () => {
+    const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
+    parseGYG(z.string(), 42, 'GET /categories');
+    expect(warn.mock.calls[0][0]).toContain('(root)');
   });
 });

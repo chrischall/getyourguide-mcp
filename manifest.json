@@ -1,10 +1,10 @@
 {
   "$schema": "https://raw.githubusercontent.com/anthropics/dxt/main/dist/mcpb-manifest.schema.json",
   "manifest_version": "0.3",
-  "name": "ofw-mcp",
-  "display_name": "OurFamilyWizard",
-  "version": "2.4.3",
-  "description": "OurFamilyWizard co-parenting tools for Claude — messages, calendar, expenses, and journal",
+  "name": "getyourguide-mcp",
+  "display_name": "GetYourGuide",
+  "version": "0.0.0",
+  "description": "GetYourGuide tours and activities for Claude — search, details, options, and reviews",
   "author": {
     "name": "Chris Chall",
     "email": "chris.c.hall@gmail.com",
@@ -12,19 +12,18 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/chrischall/ofw-mcp"
+    "url": "https://github.com/chrischall/getyourguide-mcp"
   },
-  "homepage": "https://github.com/chrischall/ofw-mcp",
-  "support": "https://github.com/chrischall/ofw-mcp/issues",
+  "homepage": "https://github.com/chrischall/getyourguide-mcp",
+  "support": "https://github.com/chrischall/getyourguide-mcp/issues",
   "license": "MIT",
   "keywords": [
-    "ofw",
-    "coparenting",
-    "ourFamilyWizard",
-    "family",
-    "messages",
-    "calendar",
-    "expenses"
+    "getyourguide",
+    "tours",
+    "activities",
+    "travel",
+    "tickets",
+    "mcp"
   ],
   "server": {
     "type": "node",
@@ -35,146 +34,75 @@
         "${__dirname}/dist/bundle.js"
       ],
       "env": {
-        "OFW_USERNAME": "${user_config.ofw_username}",
-        "OFW_PASSWORD": "${user_config.ofw_password}",
-        "OFW_INLINE_ATTACHMENTS": "${user_config.ofw_inline_attachments}",
-        "OFW_ATTACHMENTS_DIR": "${user_config.ofw_attachments_dir}",
-        "OFW_WRITE_MODE": "${user_config.ofw_write_mode}"
+        "GYG_API_KEY": "${user_config.gyg_api_key}",
+        "GYG_CURRENCY": "${user_config.gyg_currency}",
+        "GYG_LANGUAGE": "${user_config.gyg_language}"
       }
     }
   },
   "user_config": {
-    "ofw_username": {
+    "gyg_api_key": {
       "type": "string",
-      "title": "OFW Email",
-      "description": "Your OurFamilyWizard login email address. Optional — if omitted, the server falls back to the fetchproxy browser extension (requires being signed in to ourfamilywizard.com in your browser).",
-      "required": false
-    },
-    "ofw_password": {
-      "type": "string",
-      "title": "OFW Password",
-      "description": "Your OurFamilyWizard password. Optional — see ofw_username.",
-      "required": false,
+      "title": "GetYourGuide Partner API key",
+      "description": "Sent as the X-ACCESS-TOKEN header on every request. Get one by joining the GetYourGuide partner program at partner.getyourguide.com.",
+      "required": true,
       "sensitive": true
     },
-    "ofw_inline_attachments": {
-      "type": "boolean",
-      "title": "Return attachments inline",
-      "description": "When on, ofw_download_attachment returns bytes inline as MCP content (images render directly; other files come back as embedded resources) instead of writing to disk. Recommended for sandboxed hosts like Claude Desktop where the model cannot read files written to ~/Downloads. Callers can still override per-call via the tool's `inline` argument.",
-      "required": false,
-      "default": false
-    },
-    "ofw_attachments_dir": {
-      "type": "directory",
-      "title": "Attachments download directory",
-      "description": "Directory where ofw_download_attachment writes files when not returning inline. Defaults to ~/Downloads/ofw-mcp/. Pick a directory that is readable by your MCP host.",
+    "gyg_currency": {
+      "type": "string",
+      "title": "Default currency",
+      "description": "ISO 4217 currency for prices (e.g. USD, EUR). Optional — individual tool calls can override it.",
       "required": false
     },
-    "ofw_write_mode": {
+    "gyg_language": {
       "type": "string",
-      "title": "Write mode",
-      "description": "Structural write gate. \"none\" = no write tools registered (read/sync/search only); \"drafts\" = draft-level writes only (save/delete drafts, upload attachments — never send or calendar/expense/journal writes); \"all\" = everything (default). Unrecognized values fail closed to \"none\".",
-      "required": false,
-      "default": "all"
+      "title": "Default language",
+      "description": "Content language (e.g. en, de). Optional — individual tool calls can override it.",
+      "required": false
     }
   },
   "tools": [
     {
-      "name": "ofw_get_profile",
-      "description": "Get current user and co-parent info"
+      "name": "gyg_search_tours",
+      "description": "Search GetYourGuide tours and activities by free text, location, category, or date range"
     },
     {
-      "name": "ofw_get_notifications",
-      "description": "Get dashboard summary: unread messages, upcoming events, outstanding expenses"
+      "name": "gyg_get_tour",
+      "description": "Get full details for one tour by ID"
     },
     {
-      "name": "ofw_list_message_folders",
-      "description": "List message folders and unread counts"
+      "name": "gyg_get_tour_options",
+      "description": "List the bookable options of a tour"
     },
     {
-      "name": "ofw_list_messages",
-      "description": "List messages in a folder"
+      "name": "gyg_get_tour_reviews",
+      "description": "List customer reviews for a tour"
     },
     {
-      "name": "ofw_get_message",
-      "description": "Read a message by ID"
+      "name": "gyg_list_categories",
+      "description": "List activity categories"
     },
     {
-      "name": "ofw_send_message",
-      "description": "Send a message"
+      "name": "gyg_list_category_tours",
+      "description": "List tours in a category"
     },
     {
-      "name": "ofw_list_drafts",
-      "description": "List draft messages"
+      "name": "gyg_get_location",
+      "description": "Get details for a location (city, POI, region) by ID"
     },
     {
-      "name": "ofw_save_draft",
-      "description": "Create or update a draft"
-    },
-    {
-      "name": "ofw_delete_draft",
-      "description": "Delete a draft"
-    },
-    {
-      "name": "ofw_get_unread_sent",
-      "description": "List sent messages the co-parent has not yet viewed"
-    },
-    {
-      "name": "ofw_upload_attachment",
-      "description": "Upload a file from disk to use as an attachment on a message or draft"
-    },
-    {
-      "name": "ofw_download_attachment",
-      "description": "Download a message attachment by fileId — returns bytes inline or writes to disk"
-    },
-    {
-      "name": "ofw_sync_messages",
-      "description": "Sync messages from OFW into local cache"
-    },
-    {
-      "name": "ofw_list_events",
-      "description": "List calendar events in a date range"
-    },
-    {
-      "name": "ofw_create_event",
-      "description": "Create a calendar event"
-    },
-    {
-      "name": "ofw_update_event",
-      "description": "Update a calendar event"
-    },
-    {
-      "name": "ofw_delete_event",
-      "description": "Delete a calendar event"
-    },
-    {
-      "name": "ofw_get_expense_totals",
-      "description": "Get expense summary totals"
-    },
-    {
-      "name": "ofw_list_expenses",
-      "description": "List expenses"
-    },
-    {
-      "name": "ofw_create_expense",
-      "description": "Log a new expense"
-    },
-    {
-      "name": "ofw_list_journal_entries",
-      "description": "List journal entries"
-    },
-    {
-      "name": "ofw_create_journal_entry",
-      "description": "Create a journal entry"
+      "name": "gyg_list_location_tours",
+      "description": "List tours available at a location"
     }
   ],
   "compatibility": {
     "platforms": [
       "darwin",
-      "win32"
+      "win32",
+      "linux"
     ],
     "runtimes": {
-      "node": ">=22.5.0"
+      "node": ">=22.0.0"
     }
   }
 }

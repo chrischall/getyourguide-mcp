@@ -1,11 +1,10 @@
 {
   "mcpServers": {
-    "ofw": {
+    "getyourguide": {
       "command": "npx",
-      "args": ["-y", "ofw-mcp"],
+      "args": ["-y", "getyourguide-mcp"],
       "env": {
-        "OFW_USERNAME": "${OFW_USERNAME}",
-        "OFW_PASSWORD": "${OFW_PASSWORD}"
+        "GYG_API_KEY": "${GYG_API_KEY}"
       }
     }
   }

@@ -1,20 +1,20 @@
 {
-  "name": "ofw",
-  "displayName": "OurFamilyWizard",
-  "version": "2.4.3",
-  "description": "OurFamilyWizard co-parenting tools for Claude — messages, calendar, expenses, and journal via MCP",
+  "name": "getyourguide",
+  "displayName": "GetYourGuide",
+  "version": "0.0.0",
+  "description": "GetYourGuide tours and activities for Claude — search, details, options, and reviews via MCP",
   "author": {
     "name": "Chris Chall"
   },
-  "homepage": "https://github.com/chrischall/ofw-mcp",
-  "repository": "https://github.com/chrischall/ofw-mcp",
+  "homepage": "https://github.com/chrischall/getyourguide-mcp",
+  "repository": "https://github.com/chrischall/getyourguide-mcp",
   "license": "MIT",
   "keywords": [
-    "ofw",
-    "coparenting",
-    "ourFamilyWizard",
-    "mcp",
-    "family"
+    "getyourguide",
+    "tours",
+    "activities",
+    "travel",
+    "mcp"
   ],
   "skills": "./skills/",
   "mcp": "./.mcp.json"

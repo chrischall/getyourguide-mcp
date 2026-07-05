@@ -1,224 +1,169 @@
-import { loadDotenvSafely } from '@chrischall/mcp-utils';
-import { TokenManager } from '@chrischall/mcp-utils/session';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
-import { resolveAuth } from './auth.js';
-import { parseBoolEnv } from './config.js';
-import { BASE_URL, OFW_PROTOCOL_HEADERS, OFW_TOKEN_TTL_MS, OFW_TOKEN_EXPIRY_SKEW_MS } from './protocol.js';
+// GetYourGuide Partner API client (the bearer/direct-API fleet archetype,
+// with the Partner API's non-standard `X-ACCESS-TOKEN` header — which is why
+// this is a thin custom client rather than mcp-utils' `createApiClient`,
+// whose token support only emits `Authorization: Bearer …`).
+//
+// Deferred-config-error pattern: the module loads and the server boots with
+// no credentials; `GYG_API_KEY` is read lazily on the first request and a
+// missing key surfaces as an actionable McpToolError on the first tool call,
+// so the host's install-time tools/list probe always succeeds.
+import {
+  buildQueryString,
+  formatApiError,
+  loadDotenvSafely,
+  McpToolError,
+  readEnvVar,
+} from '@chrischall/mcp-utils';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { VERSION } from './version.js';
 
-// Load .env for local dev; silently skip if dotenv is unavailable (e.g. mcpb
-// bundle). loadDotenvSafely applies override:false + quiet:true and swallows a
-// missing dotenv module, matching the prior inline try/catch exactly.
+// Load .env for local dev; silently skip if dotenv is unavailable (e.g. the
+// mcpb bundle, which externalizes dotenv). override:false + quiet:true.
 const __dirname = dirname(fileURLToPath(import.meta.url));
 await loadDotenvSafely({ path: join(__dirname, '..', '.env') });
 
-export interface BinaryResponse {
-  body: Buffer;
-  contentType: string | null;
-  /** Parsed from Content-Disposition header if present. */
-  suggestedFileName: string | null;
+/** Default Partner API base URL; override with GYG_BASE_URL. */
+export const DEFAULT_BASE_URL = 'https://api.getyourguide.com/1';
+
+/** Resolve the API base URL (env override, trailing slashes stripped). */
+export function resolveBaseUrl(): string {
+  return (readEnvVar('GYG_BASE_URL') ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
 }
 
-// Parse a Content-Disposition header for a filename. Prefers RFC 6266
-// `filename*=UTF-8''…` (percent-decoded) and falls back to `filename="…"`.
-function parseContentDispositionFilename(cd: string): string | null {
-  const extMatch = /filename\*=(?:UTF-8'')?([^;]+)/i.exec(cd);
-  if (extMatch) {
-    const raw = extMatch[1].trim().replace(/^"|"$/g, '');
-    try { return decodeURIComponent(raw); } catch { return raw; }
-  }
-  const m = /filename="?([^";]+)"?/i.exec(cd);
-  return m ? m[1] : null;
-}
-
-// Set OFW_DEBUG_LOG=1 (or true/yes/on) to log every OFW request/response to
-// stderr. Authorization is redacted. Bodies are logged in full — set this
-// only when debugging, never in normal use.
-function debugLogEnabled(): boolean {
-  return parseBoolEnv('OFW_DEBUG_LOG');
-}
-
-function redactHeaders(h: Record<string, string>): Record<string, string> {
-  const out = { ...h };
-  /* v8 ignore next -- request headers always carry Authorization (set in request()); the guard is defensive for arbitrary header maps */
-  if (out.Authorization) out.Authorization = `Bearer ${out.Authorization.slice(7, 17)}…`;
-  return out;
-}
-
-// Per-request timeout. Overridable via OFW_REQUEST_TIMEOUT_MS. The default
-// (30s) is comfortably above OFW's typical p99 but low enough that a stuck
-// upstream fails fast instead of burning the MCP client-side budget — which
-// is what produced the multi-minute hangs we've seen on ofw_list_messages
-// and ofw_save_draft. Each retry (401/429 replay) gets its own fresh window.
+// Per-request timeout. Overridable via GYG_REQUEST_TIMEOUT_MS. 30s fails a
+// stuck upstream fast instead of burning the MCP client-side budget; the
+// single 429/503 retry gets its own fresh window.
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
-function getRequestTimeoutMs(): number {
-  const raw = process.env.OFW_REQUEST_TIMEOUT_MS;
-  if (typeof raw !== 'string' || raw.trim().length === 0) return DEFAULT_REQUEST_TIMEOUT_MS;
-  const n = Number(raw.trim());
+
+/** Resolve the per-request timeout in ms (env override, hardened). */
+export function requestTimeoutMs(): number {
+  const raw = readEnvVar('GYG_REQUEST_TIMEOUT_MS');
+  if (raw === undefined) return DEFAULT_REQUEST_TIMEOUT_MS;
+  const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_REQUEST_TIMEOUT_MS;
 }
 
-// Sentinel "refresh token" handed to the shared TokenManager. OFW has no
-// OAuth-style refresh token — every renewal re-runs the full `resolveAuth()`
-// (password POST or fetchproxy snapshot). The TokenManager only refuses to
-// refresh when its refresh token is `undefined`, so a non-empty placeholder
-// keeps the single-flight refresh path live; the refresh callback ignores it.
-const OFW_REFRESH_SENTINEL = 'ofw';
+/** Ceiling on how long the single rate-limit retry will wait. */
+export const RETRY_AFTER_CAP_MS = 10_000;
+/** Delay used when a 429/503 carries no usable Retry-After header. */
+export const DEFAULT_RETRY_DELAY_MS = 2_000;
 
-export class OFWClient {
-  // Bearer-token lifecycle is delegated to the shared, race-safe TokenManager
-  // (proactive refresh inside the skew window, single-flight refresh so a burst
-  // of concurrent callers coalesces onto ONE `resolveAuth()`, and a 401-replay
-  // guarded against double-refresh). It is created lazily, seeded with an
-  // already-expired placeholder token so the first request drives the refresh
-  // callback — i.e. the original "log in on first request" behavior.
-  private tokenManager: TokenManager | undefined;
+/**
+ * Turn a `Retry-After` header (seconds, per RFC 9110) into a bounded delay in
+ * ms. Missing / non-numeric / negative values fall back to the default delay;
+ * honest values are honored up to {@link RETRY_AFTER_CAP_MS} so a hostile or
+ * misconfigured upstream can't park a tool call for minutes.
+ */
+export function retryDelayMs(header: string | null): number {
+  if (header === null) return DEFAULT_RETRY_DELAY_MS;
+  const seconds = Number(header);
+  if (!Number.isFinite(seconds) || seconds < 0) return DEFAULT_RETRY_DELAY_MS;
+  return Math.min(seconds * 1000, RETRY_AFTER_CAP_MS);
+}
 
-  private getTokenManager(): TokenManager {
-    if (!this.tokenManager) {
-      this.tokenManager = new TokenManager({
-        initial: { accessToken: '', refreshToken: OFW_REFRESH_SENTINEL, expiresAt: 0 },
-        skewMs: OFW_TOKEN_EXPIRY_SKEW_MS,
-        // Map OFW's mint/refresh onto the refresh callback. `resolveAuth()`
-        // returns a token and a best-effort expiry; when the fetchproxy path
-        // can't supply one we fall back to the same 6h estimate the password
-        // path uses (the 401-replay covers a wrong guess). We re-arm the
-        // sentinel so the manager can refresh again later.
-        refresh: async () => {
-          const { token, expiresAt } = await resolveAuth();
-          return {
-            accessToken: token,
-            refreshToken: OFW_REFRESH_SENTINEL,
-            expiresAt: (expiresAt ?? new Date(Date.now() + OFW_TOKEN_TTL_MS)).getTime(),
-          };
+/** Test seams: both default to the real global implementations. */
+export interface GYGClientOptions {
+  fetchFn?: typeof fetch;
+  sleepFn?: (ms: number) => Promise<void>;
+}
+
+/**
+ * Thin GET-only client for the GetYourGuide Partner API.
+ *
+ * All tools funnel through {@link GYGClient.get}, which attaches the
+ * `X-ACCESS-TOKEN` header, injects the GYG_CURRENCY / GYG_LANGUAGE defaults,
+ * retries once on 429/503 honoring Retry-After, and formats every non-2xx
+ * body through the shared redact-then-truncate `formatApiError`.
+ */
+export class GYGClient {
+  private readonly fetchFn: typeof fetch;
+  private readonly sleepFn: (ms: number) => Promise<void>;
+
+  constructor(opts: GYGClientOptions = {}) {
+    this.fetchFn = opts.fetchFn ?? ((input, init) => fetch(input, init));
+    this.sleepFn = opts.sleepFn ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  }
+
+  // Deferred config: read the key at request time so the server boots (and
+  // answers tools/list) without credentials.
+  private requireKey(): string {
+    const key = readEnvVar('GYG_API_KEY');
+    if (key === undefined) {
+      throw new McpToolError(
+        'GYG_API_KEY is not set — the GetYourGuide Partner API requires an API key on every request.',
+        {
+          hint:
+            'Join the GetYourGuide partner program at https://partner.getyourguide.com, copy your API key, ' +
+            'and set GYG_API_KEY in your MCP host config (or a .env file next to the server).',
         },
+      );
+    }
+    return key;
+  }
+
+  /**
+   * GET a Partner API path (e.g. `/tours`) with query params. `undefined`
+   * param values are dropped; explicit per-call values win over the
+   * GYG_CURRENCY / GYG_LANGUAGE env defaults.
+   */
+  async get<T = unknown>(path: string, params: Record<string, unknown> = {}): Promise<T> {
+    const key = this.requireKey();
+    const merged: Record<string, unknown> = {
+      currency: readEnvVar('GYG_CURRENCY'),
+      'cnt-language': readEnvVar('GYG_LANGUAGE'),
+    };
+    for (const [name, value] of Object.entries(params)) {
+      if (value !== undefined) merged[name] = value;
+    }
+    const url = `${resolveBaseUrl()}${path}${buildQueryString(merged)}`;
+    const headers = {
+      'X-ACCESS-TOKEN': key,
+      Accept: 'application/json',
+      'User-Agent': `getyourguide-mcp/${VERSION} (+https://github.com/chrischall/getyourguide-mcp)`,
+    };
+
+    let response = await this.fetchFn(url, { headers, signal: AbortSignal.timeout(requestTimeoutMs()) });
+    if (response.status === 429 || response.status === 503) {
+      // One bounded retry honoring Retry-After — enough for a transient
+      // rate-limit blip without turning a hard limit into a hang.
+      await this.sleepFn(retryDelayMs(response.headers.get('retry-after')));
+      response = await this.fetchFn(url, { headers, signal: AbortSignal.timeout(requestTimeoutMs()) });
+    }
+    return this.parseResponse<T>(response, path);
+  }
+
+  private async parseResponse<T>(response: Response, path: string): Promise<T> {
+    const body = await response.text();
+    if (response.status === 401 || response.status === 403) {
+      throw new McpToolError(formatApiError(response.status, 'GET', path, body, { service: 'GetYourGuide' }), {
+        hint:
+          'The API key was rejected. Either GYG_API_KEY is wrong, or the key does not have access to this ' +
+          'endpoint (some Partner API endpoints are gated by partner tier). Check the key in your partner dashboard.',
       });
     }
-    return this.tokenManager;
-  }
-
-  async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const response = await this.fetchAuthed(method, path, body, 'application/json');
-    const text = await response.text();
-    if (debugLogEnabled()) {
-      console.error(`[ofw-debug] response body: ${text || '<empty>'}`);
-    }
-    return (text ? JSON.parse(text) : null) as T;
-  }
-
-  /** Like `request`, but returns the raw bytes plus Content-Type/-Disposition metadata. */
-  async requestBinary(method: string, path: string): Promise<BinaryResponse> {
-    const response = await this.fetchAuthed(method, path, undefined, 'application/octet-stream');
-    return {
-      body: Buffer.from(await response.arrayBuffer()),
-      contentType: response.headers.get('content-type'),
-      suggestedFileName: parseContentDispositionFilename(response.headers.get('content-disposition') ?? ''),
-    };
-  }
-
-  // Authenticated fetch for both JSON and binary callers. Auth (proactive
-  // refresh inside the skew window + one 401-replay, guarded against a
-  // double-refresh under concurrency) is delegated to the shared TokenManager's
-  // `withAuth`. The 429 wait-and-replay and the non-2xx → throw remain here.
-  private async fetchAuthed(
-    method: string,
-    path: string,
-    body: unknown,
-    accept: string,
-  ): Promise<Response> {
-    // `withAuth` invokes `call` once, and again after a refresh on a 401. The
-    // second invocation is the replay — mark it `(retry)` in the debug log,
-    // preserving the prior bespoke-loop diagnostic.
-    let attempt = 0;
-    let response = await this.getTokenManager().withAuth((token) =>
-      this.fetchOnce(method, path, body, accept, token, attempt++ > 0),
-    );
-    if (response.status === 429) {
-      await new Promise<void>((r) => setTimeout(r, 2000));
-      response = await this.getTokenManager().withAuth((token) =>
-        this.fetchOnce(method, path, body, accept, token, true),
-      );
-      if (response.status === 429) throw new Error('Rate limited by OFW API');
+    if (response.status === 429 || response.status === 503) {
+      throw new McpToolError(formatApiError(response.status, 'GET', path, body, { service: 'GetYourGuide' }), {
+        hint: 'Rate limited even after one retry — wait a minute before trying again, and space out bulk lookups.',
+      });
     }
     if (!response.ok) {
-      throw new Error(`OFW API error: ${response.status} ${response.statusText} for ${method} ${path}`);
+      throw new McpToolError(formatApiError(response.status, 'GET', path, body, { service: 'GetYourGuide' }));
     }
-    return response;
-  }
-
-  // A single OFW API fetch with the bearer token supplied by `withAuth`.
-  // Carries the per-request timeout (AbortController + setTimeout so vitest
-  // fake timers can drive it and we attach a clear error message) and the
-  // OFW_DEBUG_LOG instrumentation. Returns the raw Response — 401/429/non-2xx
-  // handling lives in the callers (`withAuth` and `fetchAuthed`).
-  private async fetchOnce(
-    method: string,
-    path: string,
-    body: unknown,
-    accept: string,
-    token: string,
-    isRetry = false,
-  ): Promise<Response> {
-    const isFormData = body instanceof FormData;
-    const headers: Record<string, string> = {
-      ...OFW_PROTOCOL_HEADERS,
-      Accept: accept,
-      Authorization: `Bearer ${token}`,
-    };
-    if (body !== undefined && !isFormData) headers['Content-Type'] = 'application/json';
-
-    const url = `${BASE_URL}${path}`;
-    if (debugLogEnabled()) {
-      const bodyPreview = body === undefined
-        ? '<none>'
-        : isFormData
-          ? `<FormData entries=${Array.from((body as FormData).keys()).join(',')}>`
-          : JSON.stringify(body);
-      console.error(`[ofw-debug] → ${method} ${url}${isRetry ? ' (retry)' : ''}`);
-      console.error(`[ofw-debug]   headers: ${JSON.stringify(redactHeaders(headers))}`);
-      console.error(`[ofw-debug]   body: ${bodyPreview}`);
-    }
-
-    // AbortController + setTimeout (not AbortSignal.timeout) so vitest fake
-    // timers can drive the timeout in tests, and so we can attach a clear
-    // error message instead of a bare DOMException on the abort path.
-    const timeoutMs = getRequestTimeoutMs();
-    const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), timeoutMs);
-    const startedAt = Date.now();
-
-    let response: Response;
     try {
-      response = await fetch(url, {
-        method,
-        headers,
-        signal: ac.signal,
-        ...(body !== undefined ? { body: isFormData ? body : JSON.stringify(body) } : {}),
+      return JSON.parse(body) as T;
+    } catch {
+      throw new McpToolError(`GetYourGuide returned a non-JSON response for GET ${path} (status ${response.status}).`, {
+        hint:
+          'This usually means a proxy or interstitial page answered instead of the API. ' +
+          'Check GYG_BASE_URL and your network, then retry.',
       });
-    } catch (err) {
-      const elapsed = Date.now() - startedAt;
-      if (ac.signal.aborted) {
-        if (debugLogEnabled()) {
-          console.error(`[ofw-debug] ⏱ TIMEOUT after ${elapsed}ms: ${method} ${url}`);
-        }
-        throw new Error(
-          `OFW API request timed out after ${timeoutMs}ms: ${method} ${path}`,
-        );
-      }
-      if (debugLogEnabled()) {
-        console.error(`[ofw-debug] ✗ ${(err as Error).message} after ${elapsed}ms: ${method} ${url}`);
-      }
-      throw err;
-    } finally {
-      clearTimeout(timer);
     }
-
-    if (debugLogEnabled()) {
-      console.error(`[ofw-debug] ← ${response.status} ${response.statusText} (${Date.now() - startedAt}ms)`);
-    }
-
-    return response;
   }
 }
 
-export const client = new OFWClient();
+/**
+ * The shared client instance handed to every tool registrar via runMcp deps.
+ * Constructed at module load — credential checks stay deferred to request time.
+ */
+export const client = new GYGClient();
