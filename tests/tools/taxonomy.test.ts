@@ -35,19 +35,20 @@ describe('gyg_list_categories', () => {
     const client = makeClient({ data: { categories: [] } });
     setup(client);
     const result = await handlers.get('gyg_list_categories')!({ language: 'en', limit: 3, offset: 1 });
-    expect(client.get).toHaveBeenCalledWith('/categories', { 'cnt-language': 'en', limit: 3, offset: 1 });
+    expect(client.get).toHaveBeenCalledWith('/categories', { cnt_language: 'en', limit: 3, offset: 1 });
     expect(JSON.parse(result.content[0].text)).toEqual({ data: { categories: [] } });
   });
 });
 
 describe('gyg_list_category_tours', () => {
-  it('GETs /categories/{id}/tours and passes the full envelope through', async () => {
+  it('GETs /tours filtered by categories[] and passes the full envelope through', async () => {
     const client = makeClient(envelope);
     setup(client);
     const result = await handlers.get('gyg_list_category_tours')!({ categoryId: 9, currency: 'EUR', limit: 2, offset: 0 });
-    expect(client.get).toHaveBeenCalledWith('/categories/9/tours', {
+    expect(client.get).toHaveBeenCalledWith('/tours', {
+      'categories[]': 9,
       currency: 'EUR',
-      'cnt-language': undefined,
+      cnt_language: undefined,
       limit: 2,
       offset: 0,
     });
@@ -70,7 +71,7 @@ describe('gyg_get_location', () => {
     const client = makeClient({ data: { locations: [{ location_id: 57 }] } });
     setup(client);
     await handlers.get('gyg_get_location')!({ locationId: 57, language: 'fr' });
-    expect(client.get).toHaveBeenCalledWith('/locations/57', { 'cnt-language': 'fr' });
+    expect(client.get).toHaveBeenCalledWith('/locations/57', { cnt_language: 'fr' });
   });
 });
 
@@ -81,7 +82,7 @@ describe('gyg_list_location_tours', () => {
     const result = await handlers.get('gyg_list_location_tours')!({ locationId: 57, limit: 1, offset: 0 });
     expect(client.get).toHaveBeenCalledWith('/locations/57/tours', {
       currency: undefined,
-      'cnt-language': undefined,
+      cnt_language: undefined,
       limit: 1,
       offset: 0,
     });

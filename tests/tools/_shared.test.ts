@@ -1,7 +1,32 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { compactTour, compactTours } from '../../src/tools/_shared.js';
+import { compactTour, compactTours, dateRangeParam } from '../../src/tools/_shared.js';
 
 afterEach(() => vi.restoreAllMocks());
+
+describe('dateRangeParam', () => {
+  it('returns undefined when neither date is given', () => {
+    expect(dateRangeParam()).toBeUndefined();
+  });
+
+  it('expands a date-only dateFrom to start of day as a single-value range', () => {
+    expect(dateRangeParam('2026-08-01')).toEqual(['2026-08-01T00:00:00']);
+  });
+
+  it('expands a date-only pair to start/end of day', () => {
+    expect(dateRangeParam('2026-08-01', '2026-08-05')).toEqual(['2026-08-01T00:00:00', '2026-08-05T23:59:59']);
+  });
+
+  it('passes full datetimes through untouched', () => {
+    expect(dateRangeParam('2026-08-01T09:00:00', '2026-08-05T18:00:00')).toEqual([
+      '2026-08-01T09:00:00',
+      '2026-08-05T18:00:00',
+    ]);
+  });
+
+  it('rejects dateTo without dateFrom', () => {
+    expect(() => dateRangeParam(undefined, '2026-08-05')).toThrowError(/dateTo was given without dateFrom/);
+  });
+});
 
 describe('compactTour', () => {
   it('keeps only the documented summary fields', () => {

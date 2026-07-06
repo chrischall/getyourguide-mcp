@@ -1,7 +1,8 @@
 // Helpers shared by the tool registrars: the JSON tool-result wrapper, the
 // zod arg atoms every listing tool repeats (currency / language / pagination),
-// and the opt-in compact projection for verbose tour listings.
-import { textResult } from '@chrischall/mcp-utils';
+// the date[] range builder, and the opt-in compact projection for verbose
+// tour listings.
+import { McpToolError, textResult } from '@chrischall/mcp-utils';
 import { z } from 'zod';
 
 /**
@@ -22,11 +23,42 @@ export const languageArg = z
   .optional()
   .describe('Content language (e.g. en, de). Defaults to GYG_LANGUAGE when set.');
 
-/** Offset/limit pagination args shared by every listing tool. */
+/** Offset/limit pagination args shared by every listing tool (API max: 500). */
 export const paginationArgs = {
-  limit: z.number().int().min(1).max(100).default(20).describe('Maximum number of items to return (1-100).'),
+  limit: z.number().int().min(1).max(500).default(20).describe('Maximum number of items to return (1-500).'),
   offset: z.number().int().min(0).default(0).describe('Number of items to skip (0-based).'),
 } as const;
+
+/** Date-range args for endpoints taking the Partner API's `date[]` param. */
+export const dateRangeArgs = {
+  dateFrom: z
+    .string()
+    .optional()
+    .describe('Earliest date, YYYY-MM-DD (or full YYYY-MM-DDThh:mm:ss). Required when dateTo is set.'),
+  dateTo: z.string().optional().describe('Latest date, YYYY-MM-DD (or full YYYY-MM-DDThh:mm:ss).'),
+} as const;
+
+/**
+ * Build the Partner API `date[]` value from dateFrom/dateTo tool args
+ * (live-verified 2026-07-06: the API takes `date[]` — one datetime for
+ * "from", two for a from/to range, format YYYY-MM-DDThh:mm:ss — NOT the
+ * date_from/date_to params this server shipped with in 1.0.0). Date-only
+ * inputs are expanded to the start/end of day; a dateTo without a dateFrom
+ * is rejected with an actionable error since a single value means "from".
+ */
+export function dateRangeParam(dateFrom?: string, dateTo?: string): string[] | undefined {
+  if (dateFrom === undefined && dateTo === undefined) return undefined;
+  if (dateFrom === undefined) {
+    throw new McpToolError('dateTo was given without dateFrom.', {
+      hint: 'The Partner API date[] range starts at dateFrom — pass dateFrom (e.g. today) alongside dateTo.',
+    });
+  }
+  const expand = (value: string, endOfDay: boolean): string =>
+    /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T${endOfDay ? '23:59:59' : '00:00:00'}` : value;
+  const range = [expand(dateFrom, false)];
+  if (dateTo !== undefined) range.push(expand(dateTo, true));
+  return range;
+}
 
 /**
  * Escape hatch for API drift: extra query params merged verbatim into the
