@@ -28,12 +28,12 @@ src/
                     #   retry honoring Retry-After (capped); formatApiError on non-2xx
   validate.ts       # parseGYG — lenient zod validation: warn to stderr + return RAW on mismatch
   tools/_shared.ts  # jsonResponse, currency/language/pagination atoms, compact tour projection
-  tools/tours.ts    # gyg_search_tours / gyg_get_tour / gyg_get_tour_options / gyg_get_tour_reviews
+  tools/tours.ts    # gyg_search_tours / gyg_get_tour / gyg_get_tour_options / gyg_get_tour_availability / gyg_get_tour_reviews
   tools/taxonomy.ts # gyg_list_categories / gyg_list_category_tours / gyg_get_location / gyg_list_location_tours
 tests/              # vitest; NO network — client tests inject fetchFn/sleepFn, tool tests spy client.get
 ```
 
-All 8 tools are **read-only GETs** — no write tools, so no `confirm` gates.
+All 9 tools are **read-only GETs** — no write tools, so no `confirm` gates.
 Env: `GYG_API_KEY` (required at call time, deferred at boot), `GYG_CURRENCY` /
 `GYG_LANGUAGE` (defaults, per-call args override), `GYG_BASE_URL`,
 `GYG_REQUEST_TIMEOUT_MS`.

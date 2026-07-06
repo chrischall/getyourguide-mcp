@@ -19,6 +19,7 @@ All tools are read-only — this server registers no write tools.
 | `gyg_search_tours` | Search tours/activities by free text, location, category, or date range; sortable; `compact` mode for slim summaries |
 | `gyg_get_tour` | Full record for one tour by numeric ID |
 | `gyg_get_tour_options` | Bookable options of a tour (ticket types, times), optionally within a date range |
+| `gyg_get_tour_availability` | Booking availability of a tour: participant categories, addons, available dates |
 | `gyg_get_tour_reviews` | Customer reviews for a tour |
 | `gyg_list_categories` | Activity categories (IDs feed `gyg_search_tours` / `gyg_list_category_tours`) |
 | `gyg_list_category_tours` | Tours in one category |
