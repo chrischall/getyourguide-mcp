@@ -62,6 +62,13 @@ export function retryDelayMs(header: string | null): number {
   return Math.min(seconds * 1000, RETRY_AFTER_CAP_MS);
 }
 
+// The Partner API REQUIRES cnt_language and currency on every documented
+// endpoint (live-verified 2026-07-06: omitting either fails param validation
+// with a 400 before auth is even checked), so the client always sends both —
+// env defaults first, hard fallbacks last, per-call params on top.
+export const FALLBACK_CURRENCY = 'USD';
+export const FALLBACK_LANGUAGE = 'en';
+
 /** Test seams: both default to the real global implementations. */
 export interface GYGClientOptions {
   fetchFn?: typeof fetch;
@@ -105,13 +112,14 @@ export class GYGClient {
   /**
    * GET a Partner API path (e.g. `/tours`) with query params. `undefined`
    * param values are dropped; explicit per-call values win over the
-   * GYG_CURRENCY / GYG_LANGUAGE env defaults.
+   * GYG_CURRENCY / GYG_LANGUAGE env defaults, which in turn win over the
+   * USD / en fallbacks (the API rejects requests missing either).
    */
   async get<T = unknown>(path: string, params: Record<string, unknown> = {}): Promise<T> {
     const key = this.requireKey();
     const merged: Record<string, unknown> = {
-      currency: readEnvVar('GYG_CURRENCY'),
-      'cnt-language': readEnvVar('GYG_LANGUAGE'),
+      currency: readEnvVar('GYG_CURRENCY') ?? FALLBACK_CURRENCY,
+      cnt_language: readEnvVar('GYG_LANGUAGE') ?? FALLBACK_LANGUAGE,
     };
     for (const [name, value] of Object.entries(params)) {
       if (value !== undefined) merged[name] = value;

@@ -40,20 +40,25 @@ Env: `GYG_API_KEY` (required at call time, deferred at boot), `GYG_CURRENCY` /
 
 ## The one thing to know before changing anything
 
-**The Partner API response shapes are NOT live-verified.** The build
-environment's network policy denied egress to `*.getyourguide.com`, so
-`docs/GETYOURGUIDE-API.md` records the intended surface and its verification
-status. That's why:
+**Routes and request shapes are live-verified (2026-07-06); 200 response
+bodies are NOT yet.** Param validation runs before auth on this API, so the
+whole request surface was verified without a key (plus the official OpenAPI
+spec, github.com/getyourguide/partner-api-spec) — see
+`docs/GETYOURGUIDE-API.md` for what 1.0.0 got wrong (`cnt_language` not
+`cnt-language`, `date[]` not `date_from/date_to`, `/reviews/tour/{id}`,
+no `/categories/{id}/tours`) and per-endpoint status. Success bodies still
+need one keyed capture each. That's why:
 
 - `parseGYG` is lenient-only (warn + return raw, never throw on shape drift);
 - `compactTours` falls back to the raw response when `data.tours` is missing;
 - search/options tools expose an `extraParams` escape hatch;
 - `GYG_BASE_URL` is overridable.
 
-First session with a real `GYG_API_KEY`: capture each endpoint live, pin the
-real shapes in `docs/GETYOURGUIDE-API.md`, fix any wrong param/field names,
-and only then consider tightening validation. Keep the lenient fallback —
-undocumented-to-us APIs drift; degrade, never break.
+First session with a real `GYG_API_KEY`: capture one 200 per endpoint, pin
+any drift in `docs/GETYOURGUIDE-API.md`, and only then consider tightening
+validation. Keep the lenient fallback — these APIs drift; degrade, never
+break. Watch the grammar split: classic endpoints take `cnt_language`
+(underscore); `/tours/{id}/availability` takes `cnt-language` (hyphen).
 
 ## Conventions (fleet-standard, abbreviated)
 

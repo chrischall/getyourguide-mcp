@@ -57,8 +57,8 @@ you which env var to set.
 | Variable | Required | Meaning |
 | --- | --- | --- |
 | `GYG_API_KEY` | yes (for tool calls) | Partner API key, sent as `X-ACCESS-TOKEN` |
-| `GYG_CURRENCY` | no | Default currency for prices (ISO 4217, e.g. `USD`); per-call `currency` args override |
-| `GYG_LANGUAGE` | no | Default content language (e.g. `en`); per-call `language` args override |
+| `GYG_CURRENCY` | no | Default currency for prices (ISO 4217; falls back to `USD` — the API requires one); per-call `currency` args override |
+| `GYG_LANGUAGE` | no | Default content language (falls back to `en` — the API requires one); per-call `language` args override |
 | `GYG_BASE_URL` | no | API base URL (default `https://api.getyourguide.com/1`) |
 | `GYG_REQUEST_TIMEOUT_MS` | no | Per-request timeout (default 30000) |
 
@@ -74,9 +74,9 @@ see `.env.example`).
 - **API drift:** responses are validated leniently. On an unexpected shape the
   server logs a precise warning to stderr and returns the raw response rather
   than breaking; search tools also accept `extraParams` to pass raw query
-  params through verbatim. See `docs/GETYOURGUIDE-API.md` — the response
-  shapes were coded from the documented Partner API and still need pinning
-  against live captures.
+  params through verbatim. See `docs/GETYOURGUIDE-API.md` — routes and
+  request shapes are live-verified against the API and its official OpenAPI
+  spec; real 200 bodies still need pinning from a keyed capture.
 - **Secrets:** upstream error bodies are redacted then truncated before they
   reach a tool result; the API key is never echoed.
 

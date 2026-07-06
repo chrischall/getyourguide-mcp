@@ -51,18 +51,34 @@ describe('gyg_search_tours', () => {
     expect(client.get).toHaveBeenCalledWith('/tours', {
       q: 'louvre',
       location: 57,
-      categories: 2,
-      date_from: '2026-08-01',
-      date_to: '2026-08-05',
+      'categories[]': 2,
+      'date[]': ['2026-08-01T00:00:00', '2026-08-05T23:59:59'],
       sortfield: 'price',
       sortdirection: 'asc',
       currency: 'EUR',
-      'cnt-language': 'en',
+      cnt_language: 'en',
       limit: 10,
       offset: 5,
       preformatted: 'full',
     });
     expect(JSON.parse(result.content[0].text)).toEqual(envelope);
+  });
+
+  it('passes full datetimes through and sends a single-value date[] for dateFrom alone', async () => {
+    const client = makeClient(envelope);
+    setup(client);
+    await handlers.get('gyg_search_tours')!({ dateFrom: '2026-08-01T12:30:00' });
+    expect(client.get).toHaveBeenCalledWith('/tours', expect.objectContaining({ 'date[]': ['2026-08-01T12:30:00'] }));
+  });
+
+  it('rejects dateTo without dateFrom with an actionable error', async () => {
+    const client = makeClient(envelope);
+    setup(client);
+    await expect(handlers.get('gyg_search_tours')!({ dateTo: '2026-08-05' })).rejects.toMatchObject({
+      message: expect.stringContaining('dateTo was given without dateFrom'),
+      hint: expect.stringContaining('dateFrom'),
+    });
+    expect(client.get).not.toHaveBeenCalled();
   });
 
   it('returns compact summaries when compact=true', async () => {
@@ -91,38 +107,50 @@ describe('gyg_get_tour', () => {
     const client = makeClient({ data: { tours: [{ tour_id: 23776 }] } });
     setup(client);
     const result = await handlers.get('gyg_get_tour')!({ tourId: 23776, currency: 'USD', language: 'de' });
-    expect(client.get).toHaveBeenCalledWith('/tours/23776', { currency: 'USD', 'cnt-language': 'de' });
+    expect(client.get).toHaveBeenCalledWith('/tours/23776', { currency: 'USD', cnt_language: 'de' });
     expect(result.content[0].type).toBe('text');
   });
 });
 
 describe('gyg_get_tour_options', () => {
-  it('GETs /tours/{id}/options with a date range and extraParams', async () => {
+  it('GETs /tours/{id}/options with a date[] range and extraParams', async () => {
     const client = makeClient({ data: { tour_options: [] } });
     setup(client);
     await handlers.get('gyg_get_tour_options')!({
       tourId: 1,
       dateFrom: '2026-08-01',
       dateTo: '2026-08-02',
+      limit: 15,
       extraParams: { foo: 'bar' },
     });
     expect(client.get).toHaveBeenCalledWith('/tours/1/options', {
-      date_from: '2026-08-01',
-      date_to: '2026-08-02',
+      'date[]': ['2026-08-01T00:00:00', '2026-08-02T23:59:59'],
       currency: undefined,
-      'cnt-language': undefined,
+      cnt_language: undefined,
+      limit: 15,
       foo: 'bar',
     });
   });
 });
 
 describe('gyg_get_tour_reviews', () => {
-  it('GETs /tours/{id}/reviews with pagination', async () => {
-    const client = makeClient({ data: { reviews: [] } });
+  it('GETs /reviews/tour/{id} with sort and pagination', async () => {
+    const client = makeClient({ data: { reviews: {} } });
     setup(client);
-    await handlers.get('gyg_get_tour_reviews')!({ tourId: 2, limit: 5, offset: 10, language: 'en' });
-    expect(client.get).toHaveBeenCalledWith('/tours/2/reviews', {
-      'cnt-language': 'en',
+    await handlers.get('gyg_get_tour_reviews')!({
+      tourId: 2,
+      limit: 5,
+      offset: 10,
+      language: 'en',
+      currency: 'EUR',
+      sortField: 'date',
+      sortDirection: 'desc',
+    });
+    expect(client.get).toHaveBeenCalledWith('/reviews/tour/2', {
+      currency: 'EUR',
+      cnt_language: 'en',
+      sortfield: 'date',
+      sortdirection: 'desc',
       limit: 5,
       offset: 10,
     });

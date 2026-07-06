@@ -122,7 +122,7 @@ describe('GYGClient.get', () => {
     expect(result).toEqual({ data: { tours: [] } });
     expect(fetchFn).toHaveBeenCalledTimes(1);
     const [url, init] = fetchFn.mock.calls[0];
-    expect(url).toBe(`${DEFAULT_BASE_URL}/tours`);
+    expect(url).toBe(`${DEFAULT_BASE_URL}/tours?currency=USD&cnt_language=en`);
     expect(init.headers['X-ACCESS-TOKEN']).toBe('test-key');
     expect(init.headers.Accept).toBe('application/json');
     expect(init.headers['User-Agent']).toContain(`getyourguide-mcp/${VERSION}`);
@@ -131,15 +131,33 @@ describe('GYGClient.get', () => {
 
   it('injects GYG_CURRENCY / GYG_LANGUAGE defaults and drops undefined params', async () => {
     process.env.GYG_API_KEY = 'test-key';
-    process.env.GYG_CURRENCY = 'USD';
-    process.env.GYG_LANGUAGE = 'en';
+    process.env.GYG_CURRENCY = 'CHF';
+    process.env.GYG_LANGUAGE = 'de';
     const { client, fetchFn } = makeClient([jsonResponse({})]);
     await client.get('/tours', { q: 'louvre', locationId: undefined });
     const [url] = fetchFn.mock.calls[0];
-    expect(url).toContain('currency=USD');
-    expect(url).toContain('cnt-language=en');
+    expect(url).toContain('currency=CHF');
+    expect(url).toContain('cnt_language=de');
     expect(url).toContain('q=louvre');
     expect(url).not.toContain('locationId');
+  });
+
+  it('falls back to USD / en when no env defaults are set (the API requires both)', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    const { client, fetchFn } = makeClient([jsonResponse({})]);
+    await client.get('/tours');
+    const [url] = fetchFn.mock.calls[0];
+    expect(url).toContain('currency=USD');
+    expect(url).toContain('cnt_language=en');
+  });
+
+  it('repeats array params (the Partner API date[] / categories[] grammar)', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    const { client, fetchFn } = makeClient([jsonResponse({})]);
+    await client.get('/tours', { 'date[]': ['2026-08-01T00:00:00', '2026-08-05T23:59:59'] });
+    const [url] = fetchFn.mock.calls[0];
+    expect(url).toContain('date%5B%5D=2026-08-01T00%3A00%3A00');
+    expect(url).toContain('date%5B%5D=2026-08-05T23%3A59%3A59');
   });
 
   it('lets an explicit per-call param beat the env default', async () => {
