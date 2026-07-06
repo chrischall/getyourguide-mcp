@@ -69,6 +69,16 @@ export function retryDelayMs(header: string | null): number {
 export const FALLBACK_CURRENCY = 'USD';
 export const FALLBACK_LANGUAGE = 'en';
 
+/**
+ * Resolve the content language the client would send by default. Exposed for
+ * endpoints that take the hyphenated `cnt-language` grammar (e.g.
+ * /tours/{id}/availability) and therefore opt out of default injection but
+ * still need the same env-then-fallback resolution.
+ */
+export function resolveLanguage(): string {
+  return readEnvVar('GYG_LANGUAGE') ?? FALLBACK_LANGUAGE;
+}
+
 /** Test seams: both default to the real global implementations. */
 export interface GYGClientOptions {
   fetchFn?: typeof fetch;
@@ -114,13 +124,24 @@ export class GYGClient {
    * param values are dropped; explicit per-call values win over the
    * GYG_CURRENCY / GYG_LANGUAGE env defaults, which in turn win over the
    * USD / en fallbacks (the API rejects requests missing either).
+   *
+   * `defaults: false` skips the currency/cnt_language injection for the
+   * endpoints on the newer grammar (availability takes `cnt-language` with a
+   * hyphen and no currency) — the caller then owns every param.
    */
-  async get<T = unknown>(path: string, params: Record<string, unknown> = {}): Promise<T> {
+  async get<T = unknown>(
+    path: string,
+    params: Record<string, unknown> = {},
+    opts: { defaults?: boolean } = {},
+  ): Promise<T> {
     const key = this.requireKey();
-    const merged: Record<string, unknown> = {
-      currency: readEnvVar('GYG_CURRENCY') ?? FALLBACK_CURRENCY,
-      cnt_language: readEnvVar('GYG_LANGUAGE') ?? FALLBACK_LANGUAGE,
-    };
+    const merged: Record<string, unknown> =
+      opts.defaults === false
+        ? {}
+        : {
+            currency: readEnvVar('GYG_CURRENCY') ?? FALLBACK_CURRENCY,
+            cnt_language: resolveLanguage(),
+          };
     for (const [name, value] of Object.entries(params)) {
       if (value !== undefined) merged[name] = value;
     }

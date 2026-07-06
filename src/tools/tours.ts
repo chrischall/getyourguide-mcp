@@ -2,7 +2,7 @@
 // GETs against the Partner API — this server registers no write tools.
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import type { GYGClient } from '../client.js';
+import { resolveLanguage, type GYGClient } from '../client.js';
 import { parseGYG } from '../validate.js';
 import {
   compactTours,
@@ -108,6 +108,33 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
         limit: args.limit,
         ...args.extraParams,
       });
+      return jsonResponse(raw);
+    },
+  );
+
+  server.registerTool(
+    'gyg_get_tour_availability',
+    {
+      description:
+        'Get booking availability for a tour: bookable participant categories, addons, and the list of available ' +
+        'dates (with participant ranges). Lighter than gyg_get_tour_options when you only need "when can I go".',
+      annotations: { readOnlyHint: true },
+      inputSchema: {
+        tourId: tourIdArg,
+        language: languageArg,
+      },
+    },
+    async (args) => {
+      // This endpoint is on the newer grammar (live-verified 2026-07-06): it
+      // takes `cnt-language` (hyphen, unlike every classic endpoint's
+      // cnt_language) and no currency, and answers a bare availability object
+      // with no {_metadata, data} envelope — so defaults are skipped and the
+      // language is resolved here.
+      const raw = await client.get(
+        `/tours/${args.tourId}/availability`,
+        { 'cnt-language': args.language ?? resolveLanguage() },
+        { defaults: false },
+      );
       return jsonResponse(raw);
     },
   );

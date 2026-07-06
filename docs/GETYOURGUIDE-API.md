@@ -66,6 +66,7 @@ sends both: per-call arg → `GYG_CURRENCY`/`GYG_LANGUAGE` env → `USD`/`en`.
 | `gyg_search_tours` | `GET /tours` | `q` (or `iata:<code>`), `location` (legacy, see below), `categories[]`, `date[]`, `sortfield`, `sortdirection`, `currency`, `cnt_language`, `limit`, `offset` | live + spec (`location`: live only) |
 | `gyg_get_tour` | `GET /tours/{tourId}` | `currency`, `cnt_language` | live + spec |
 | `gyg_get_tour_options` | `GET /tours/{tourId}/options` | `date[]`, `currency`, `cnt_language`, `limit` | live + spec |
+| `gyg_get_tour_availability` | `GET /tours/{tourId}/availability` | `cnt-language` (**hyphen** — newer grammar; no currency) | live + spec |
 | `gyg_get_tour_reviews` | `GET /reviews/tour/{tourId}` | `currency`, `cnt_language`, `sortfield` (`rating`\|`date`), `sortdirection`, `limit`, `offset` (≤300) | live + spec |
 | `gyg_list_categories` | `GET /categories` | `cnt_language`, `currency`, `limit`, `offset` | live + spec |
 | `gyg_list_category_tours` | `GET /tours?categories[]={id}` | `categories[]`, `currency`, `cnt_language`, `limit`, `offset` | live + spec |
@@ -108,10 +109,6 @@ sends both: per-call arg → `GYG_CURRENCY`/`GYG_LANGUAGE` env → `USD`/`en`.
 
 ### Candidate future endpoints (spec'd + live-verified to exist)
 
-- `GET /tours/{id}/availability` — takes `cnt-language` (**hyphen**); returns
-  a **bare** availability object (`tour_id`, `participants_range`,
-  `categories`, `addons`, `available_dates[]`, `update_timestamp`) — no
-  `_metadata`/`data` envelope.
 - `GET /options/{option_id}`, `GET /suppliers/{supplier_id}`,
   `GET /categories/{category_id}` — same `{_metadata, data:{…}}` envelope
   (`tour_options` / `supplier` / `categories` arrays).
@@ -138,7 +135,9 @@ Listing/detail envelope (tours, categories, options, suppliers):
 - `/tours/{id}/options`: `data.tour_options[]`
 - `/categories`, `/categories/{id}`: `data.categories[]`
 - `/reviews/tour/{id}`: `data.reviews.outline` + `data.reviews.review_items`
-- `/tours/{id}/availability`: bare object, no envelope
+- `/tours/{id}/availability`: **bare** availability object (`tour_id`,
+  `participants_range`, `categories`, `addons`, `available_dates[]`,
+  `update_timestamp`) — no `_metadata`/`data` envelope
 
 Tour fields (spec `Tour` schema) — the compact projection's keys are all
 real: `tour_id`, `title`, `abstract`, `url`, `price`, `overall_rating`,

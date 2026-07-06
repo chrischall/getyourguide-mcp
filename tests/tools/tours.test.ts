@@ -157,11 +157,33 @@ describe('gyg_get_tour_reviews', () => {
   });
 });
 
+describe('gyg_get_tour_availability', () => {
+  it('GETs /tours/{id}/availability with the hyphenated cnt-language and no defaults', async () => {
+    const client = makeClient({ tour_id: 23776, available_dates: [] });
+    setup(client);
+    const result = await handlers.get('gyg_get_tour_availability')!({ tourId: 23776, language: 'de' });
+    expect(client.get).toHaveBeenCalledWith(
+      '/tours/23776/availability',
+      { 'cnt-language': 'de' },
+      { defaults: false },
+    );
+    expect(JSON.parse(result.content[0].text)).toEqual({ tour_id: 23776, available_dates: [] });
+  });
+
+  it('falls back to the resolved default language when no language arg is given', async () => {
+    const client = makeClient({});
+    setup(client);
+    await handlers.get('gyg_get_tour_availability')!({ tourId: 1 });
+    expect(client.get).toHaveBeenCalledWith('/tours/1/availability', { 'cnt-language': 'en' }, { defaults: false });
+  });
+});
+
 describe('registration', () => {
-  it('registers exactly the four tour tools', () => {
+  it('registers exactly the five tour tools', () => {
     setup(makeClient({}));
     expect([...handlers.keys()].sort()).toEqual([
       'gyg_get_tour',
+      'gyg_get_tour_availability',
       'gyg_get_tour_options',
       'gyg_get_tour_reviews',
       'gyg_search_tours',

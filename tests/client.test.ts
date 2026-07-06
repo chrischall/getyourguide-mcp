@@ -6,6 +6,7 @@ import {
   RETRY_AFTER_CAP_MS,
   requestTimeoutMs,
   resolveBaseUrl,
+  resolveLanguage,
   retryDelayMs,
 } from '../src/client.js';
 import { VERSION } from '../src/version.js';
@@ -55,6 +56,17 @@ describe('resolveBaseUrl', () => {
   it('honors GYG_BASE_URL and strips trailing slashes', () => {
     process.env.GYG_BASE_URL = 'https://example.com/api/';
     expect(resolveBaseUrl()).toBe('https://example.com/api');
+  });
+});
+
+describe('resolveLanguage', () => {
+  it('falls back to en when GYG_LANGUAGE is unset', () => {
+    expect(resolveLanguage()).toBe('en');
+  });
+
+  it('honors GYG_LANGUAGE', () => {
+    process.env.GYG_LANGUAGE = 'fr';
+    expect(resolveLanguage()).toBe('fr');
   });
 });
 
@@ -149,6 +161,16 @@ describe('GYGClient.get', () => {
     const [url] = fetchFn.mock.calls[0];
     expect(url).toContain('currency=USD');
     expect(url).toContain('cnt_language=en');
+  });
+
+  it('skips the currency/cnt_language defaults when defaults:false (availability grammar)', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    const { client, fetchFn } = makeClient([jsonResponse({})]);
+    await client.get('/tours/1/availability', { 'cnt-language': 'de' }, { defaults: false });
+    const [url] = fetchFn.mock.calls[0];
+    expect(url).toBe(`${DEFAULT_BASE_URL}/tours/1/availability?cnt-language=de`);
+    expect(url).not.toContain('currency');
+    expect(url).not.toContain('cnt_language');
   });
 
   it('repeats array params (the Partner API date[] / categories[] grammar)', async () => {
