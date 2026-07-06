@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/chrischall/getyourguide-mcp/compare/v1.1.0...v1.1.1) (2026-07-06)
+
+
+### Bug Fixes
+
+* add prepublishOnly build guard so npm publish can never ship without dist/ ([#12](https://github.com/chrischall/getyourguide-mcp/issues/12)) ([606f6d6](https://github.com/chrischall/getyourguide-mcp/commit/606f6d6d329cc4b93998c64968572822cbbc4931))
+
 ## [1.1.0](https://github.com/chrischall/getyourguide-mcp/compare/v1.0.0...v1.1.0) (2026-07-06)
 
 
