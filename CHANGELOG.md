@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/chrischall/getyourguide-mcp/compare/v1.0.0...v1.1.0) (2026-07-06)
+
+
+### Features
+
+* add gyg_get_tour_availability tool ([#10](https://github.com/chrischall/getyourguide-mcp/issues/10)) ([909a345](https://github.com/chrischall/getyourguide-mcp/commit/909a3459ef2188040ad6169c0e3696908e85681d))
+
+
+### Bug Fixes
+
+* correct Partner API params and routes against the live-verified surface ([#8](https://github.com/chrischall/getyourguide-mcp/issues/8)) ([612b536](https://github.com/chrischall/getyourguide-mcp/commit/612b536a7ce6148b264c3f14f35d6977384a2ee2))
+
 ## 1.0.0 (2026-07-05)
 
 
