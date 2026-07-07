@@ -23,10 +23,10 @@ npx vitest run tests/client.test.ts   # single file
 src/
   index.ts          # bootstrap — runMcp({ name, version, deps: client, tools })
   version.ts        # single VERSION source (x-release-please-version marker)
-  client.ts         # GYGClient — thin custom GET client (X-ACCESS-TOKEN ≠ Authorization: Bearer,
-                    #   so NOT createApiClient); deferred GYG_API_KEY config error; one 429/503
-                    #   retry honoring Retry-After (capped); formatApiError on non-2xx
-  validate.ts       # parseGYG — lenient zod validation: warn to stderr + return RAW on mismatch
+  client.ts         # GYGClient — GET wrapper over createApiClient({ tokenHeader: 'X-ACCESS-TOKEN' })
+                    #   (its non-Bearer token mode); deferred GYG_API_KEY config error; one 429/503
+                    #   retry honoring a capped Retry-After; failures re-mapped to McpToolError + hint
+  validate.ts       # parseGYG — thin wrapper over mcp-utils parseLenient: warn to stderr + return RAW on mismatch
   tools/_shared.ts  # jsonResponse, currency/language/pagination atoms, compact tour projection
   tools/tours.ts    # gyg_search_tours / gyg_get_tour / gyg_get_tour_options / gyg_get_tour_availability / gyg_get_tour_reviews
   tools/taxonomy.ts # gyg_list_categories / gyg_list_category_tours / gyg_get_location / gyg_list_location_tours

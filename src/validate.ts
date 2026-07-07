@@ -1,3 +1,4 @@
+import { parseLenient } from '@chrischall/mcp-utils';
 import type { z } from 'zod';
 
 /**
@@ -10,19 +11,12 @@ import type { z } from 'zod';
  * structured warning to stderr naming the endpoint and fields, then return
  * the RAW response unchanged so the tool stays useful (degrade, never break).
  *
- * The warning text is deliberately precise ("data.tours: expected array…") —
- * it's the failure signal a maintainer (human or Claude) fixes in one
- * session, vs. "search sometimes looks empty".
+ * Thin wrapper over @chrischall/mcp-utils' shared `parseLenient` (the
+ * consolidation of the fleet's `parseGYG`/`parseOFW`/`parseAllTrails` triplet),
+ * keeping the local `(schema, raw, ctx)` call shape the tools use — `ctx` (e.g.
+ * `GET /tours`) becomes the warning's context so the stderr signal still names
+ * the endpoint and the drifted fields.
  */
 export function parseGYG<S extends z.ZodType>(schema: S, raw: unknown, ctx: string): z.output<S> {
-  const result = schema.safeParse(raw);
-  if (result.success) return result.data;
-  const issues = result.error.issues
-    .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
-    .join('; ');
-  console.error(
-    `[getyourguide-mcp] WARNING: response for ${ctx} failed validation: ${issues} — ` +
-      'continuing with the raw response; fields derived from it may be missing or wrong.',
-  );
-  return raw as z.output<S>;
+  return parseLenient(schema, raw, { label: 'getyourguide-mcp', context: ctx }) as z.output<S>;
 }
