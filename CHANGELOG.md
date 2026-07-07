@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.1.2](https://github.com/chrischall/getyourguide-mcp/compare/v1.1.1...v1.1.2) (2026-07-07)
+
+
+### Bug Fixes
+
+* bump @chrischall/mcp-utils to 0.12.0 ([#19](https://github.com/chrischall/getyourguide-mcp/issues/19)) ([7392d26](https://github.com/chrischall/getyourguide-mcp/commit/7392d26a5418cc4c7db2bdb1716bd5d91ba1d457))
+
+
+### Refactor
+
+* adopt createApiClient (tokenHeader) + parseLenient ([#16](https://github.com/chrischall/getyourguide-mcp/issues/16)) ([7b3a83b](https://github.com/chrischall/getyourguide-mcp/commit/7b3a83b2dcdb0fe05ce6c11520a45daa72247550))
+
+
+### Documentation
+
+* document first-party dependency-bump label exception ([#20](https://github.com/chrischall/getyourguide-mcp/issues/20)) ([b3b6913](https://github.com/chrischall/getyourguide-mcp/commit/b3b6913981889d7c2c73810221fb15546c76aa7e))
+* remove duplicate Changelog header ([#18](https://github.com/chrischall/getyourguide-mcp/issues/18)) ([35fd82b](https://github.com/chrischall/getyourguide-mcp/commit/35fd82bc9998f3b4b3d07eb20644f317d3190faa))
+
 ## [1.1.1](https://github.com/chrischall/getyourguide-mcp/compare/v1.1.0...v1.1.1) (2026-07-06)
 
 

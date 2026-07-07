@@ -3,7 +3,7 @@
   "manifest_version": "0.3",
   "name": "getyourguide-mcp",
   "display_name": "GetYourGuide",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "GetYourGuide tours and activities for Claude — search, details, options, and reviews",
   "author": {
     "name": "Chris Chall",
