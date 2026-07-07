@@ -1,14 +1,21 @@
-// GetYourGuide Partner API client (the bearer/direct-API fleet archetype,
-// with the Partner API's non-standard `X-ACCESS-TOKEN` header — which is why
-// this is a thin custom client rather than mcp-utils' `createApiClient`,
-// whose token support only emits `Authorization: Bearer …`).
+// GetYourGuide Partner API client (the bearer/direct-API fleet archetype). The
+// Partner API authenticates with a non-standard `X-ACCESS-TOKEN` header, so the
+// shared `createApiClient` is configured with `tokenHeader: 'X-ACCESS-TOKEN'`
+// (it sends the raw token in that named header — the `Bearer` default is only
+// one of its modes). The transport concerns — per-request timeout, the single
+// 429/503 retry honoring a capped Retry-After, and redact-then-truncate error
+// formatting — are all `createApiClient`'s; this wrapper keeps only the
+// GYG-specific glue: the deferred `GYG_API_KEY` config error, the
+// currency/cnt_language default injection, and the actionable hints the tools
+// surface on auth / rate-limit / non-JSON failures.
 //
 // Deferred-config-error pattern: the module loads and the server boots with
 // no credentials; `GYG_API_KEY` is read lazily on the first request and a
 // missing key surfaces as an actionable McpToolError on the first tool call,
 // so the host's install-time tools/list probe always succeeds.
 import {
-  buildQueryString,
+  ApiError,
+  createApiClient,
   formatApiError,
   loadDotenvSafely,
   McpToolError,
@@ -44,23 +51,10 @@ export function requestTimeoutMs(): number {
   return Number.isFinite(n) && n > 0 ? n : DEFAULT_REQUEST_TIMEOUT_MS;
 }
 
-/** Ceiling on how long the single rate-limit retry will wait. */
+/** Ceiling on how long the single rate-limit retry will wait (caps Retry-After). */
 export const RETRY_AFTER_CAP_MS = 10_000;
 /** Delay used when a 429/503 carries no usable Retry-After header. */
 export const DEFAULT_RETRY_DELAY_MS = 2_000;
-
-/**
- * Turn a `Retry-After` header (seconds, per RFC 9110) into a bounded delay in
- * ms. Missing / non-numeric / negative values fall back to the default delay;
- * honest values are honored up to {@link RETRY_AFTER_CAP_MS} so a hostile or
- * misconfigured upstream can't park a tool call for minutes.
- */
-export function retryDelayMs(header: string | null): number {
-  if (header === null) return DEFAULT_RETRY_DELAY_MS;
-  const seconds = Number(header);
-  if (!Number.isFinite(seconds) || seconds < 0) return DEFAULT_RETRY_DELAY_MS;
-  return Math.min(seconds * 1000, RETRY_AFTER_CAP_MS);
-}
 
 // The Partner API REQUIRES cnt_language and currency on every documented
 // endpoint (live-verified 2026-07-06: omitting either fails param validation
@@ -79,6 +73,17 @@ export function resolveLanguage(): string {
   return readEnvVar('GYG_LANGUAGE') ?? FALLBACK_LANGUAGE;
 }
 
+/** Hint shown when the API key is rejected (401/403). */
+const AUTH_HINT =
+  'The API key was rejected. Either GYG_API_KEY is wrong, or the key does not have access to this ' +
+  'endpoint (some Partner API endpoints are gated by partner tier). Check the key in your partner dashboard.';
+/** Hint shown when a 429/503 persists after the single retry. */
+const RATE_LIMIT_HINT = 'Rate limited even after one retry — wait a minute before trying again, and space out bulk lookups.';
+/** Hint shown when a 2xx body isn't JSON (proxy/interstitial answered). */
+const NON_JSON_HINT =
+  'This usually means a proxy or interstitial page answered instead of the API. ' +
+  'Check GYG_BASE_URL and your network, then retry.';
+
 /** Test seams: both default to the real global implementations. */
 export interface GYGClientOptions {
   fetchFn?: typeof fetch;
@@ -89,9 +94,11 @@ export interface GYGClientOptions {
  * Thin GET-only client for the GetYourGuide Partner API.
  *
  * All tools funnel through {@link GYGClient.get}, which attaches the
- * `X-ACCESS-TOKEN` header, injects the GYG_CURRENCY / GYG_LANGUAGE defaults,
- * retries once on 429/503 honoring Retry-After, and formats every non-2xx
- * body through the shared redact-then-truncate `formatApiError`.
+ * `X-ACCESS-TOKEN` header (via `createApiClient`'s `tokenHeader`), injects the
+ * GYG_CURRENCY / GYG_LANGUAGE defaults, retries once on 429/503 honoring a
+ * capped Retry-After, and maps every failure onto an actionable
+ * {@link McpToolError} (`createApiClient` handles the redact-then-truncate
+ * `formatApiError` body formatting under the hood).
  */
 export class GYGClient {
   private readonly fetchFn: typeof fetch;
@@ -119,6 +126,36 @@ export class GYGClient {
     return key;
   }
 
+  // Build a per-request bearer client. Constructed per call so GYG_BASE_URL /
+  // GYG_REQUEST_TIMEOUT_MS env overrides are read at request time, and so the
+  // 401/429 error factories can close over `path` (createApiClient passes them
+  // no context) to reproduce the `... for GET <path>` message shape.
+  private apiFor(path: string): ReturnType<typeof createApiClient> {
+    return createApiClient({
+      baseUrl: resolveBaseUrl(),
+      getToken: () => this.requireKey(),
+      tokenHeader: 'X-ACCESS-TOKEN',
+      serviceName: 'GetYourGuide',
+      baseHeaders: {
+        'User-Agent': `getyourguide-mcp/${VERSION} (+https://github.com/chrischall/getyourguide-mcp)`,
+      },
+      timeout: requestTimeoutMs(),
+      retry: {
+        count: 1,
+        delayMs: DEFAULT_RETRY_DELAY_MS,
+        statuses: [429, 503],
+        honorRetryAfter: true,
+        maxRetryAfterMs: RETRY_AFTER_CAP_MS,
+      },
+      onUnauthorized: () =>
+        new McpToolError(formatApiError(401, 'GET', path, '', { service: 'GetYourGuide' }), { hint: AUTH_HINT }),
+      onRateLimited: () =>
+        new McpToolError(formatApiError(429, 'GET', path, '', { service: 'GetYourGuide' }), { hint: RATE_LIMIT_HINT }),
+      fetchImpl: this.fetchFn,
+      sleep: this.sleepFn,
+    });
+  }
+
   /**
    * GET a Partner API path (e.g. `/tours`) with query params. `undefined`
    * param values are dropped; explicit per-call values win over the
@@ -134,7 +171,6 @@ export class GYGClient {
     params: Record<string, unknown> = {},
     opts: { defaults?: boolean } = {},
   ): Promise<T> {
-    const key = this.requireKey();
     const merged: Record<string, unknown> =
       opts.defaults === false
         ? {}
@@ -145,48 +181,27 @@ export class GYGClient {
     for (const [name, value] of Object.entries(params)) {
       if (value !== undefined) merged[name] = value;
     }
-    const url = `${resolveBaseUrl()}${path}${buildQueryString(merged)}`;
-    const headers = {
-      'X-ACCESS-TOKEN': key,
-      Accept: 'application/json',
-      'User-Agent': `getyourguide-mcp/${VERSION} (+https://github.com/chrischall/getyourguide-mcp)`,
-    };
 
-    let response = await this.fetchFn(url, { headers, signal: AbortSignal.timeout(requestTimeoutMs()) });
-    if (response.status === 429 || response.status === 503) {
-      // One bounded retry honoring Retry-After — enough for a transient
-      // rate-limit blip without turning a hard limit into a hang.
-      await this.sleepFn(retryDelayMs(response.headers.get('retry-after')));
-      response = await this.fetchFn(url, { headers, signal: AbortSignal.timeout(requestTimeoutMs()) });
-    }
-    return this.parseResponse<T>(response, path);
-  }
-
-  private async parseResponse<T>(response: Response, path: string): Promise<T> {
-    const body = await response.text();
-    if (response.status === 401 || response.status === 403) {
-      throw new McpToolError(formatApiError(response.status, 'GET', path, body, { service: 'GetYourGuide' }), {
-        hint:
-          'The API key was rejected. Either GYG_API_KEY is wrong, or the key does not have access to this ' +
-          'endpoint (some Partner API endpoints are gated by partner tier). Check the key in your partner dashboard.',
-      });
-    }
-    if (response.status === 429 || response.status === 503) {
-      throw new McpToolError(formatApiError(response.status, 'GET', path, body, { service: 'GetYourGuide' }), {
-        hint: 'Rate limited even after one retry — wait a minute before trying again, and space out bulk lookups.',
-      });
-    }
-    if (!response.ok) {
-      throw new McpToolError(formatApiError(response.status, 'GET', path, body, { service: 'GetYourGuide' }));
-    }
     try {
-      return JSON.parse(body) as T;
-    } catch {
-      throw new McpToolError(`GetYourGuide returned a non-JSON response for GET ${path} (status ${response.status}).`, {
-        hint:
-          'This usually means a proxy or interstitial page answered instead of the API. ' +
-          'Check GYG_BASE_URL and your network, then retry.',
-      });
+      return await this.apiFor(path).fetchJson<T>('GET', path, { query: merged });
+    } catch (err) {
+      // 401/429 already arrive as actionable McpToolErrors from the factories
+      // above; requireKey's deferred-config error does too. Pass them through.
+      if (err instanceof McpToolError) throw err;
+      // Every other non-2xx surfaces as a status-carrying ApiError whose message
+      // is the redacted `formatApiError` string. Re-wrap it with the matching
+      // hint: 403 shares the auth hint, a persisting 503 the rate-limit hint.
+      if (err instanceof ApiError) {
+        if (err.status === 403) throw new McpToolError(err.message, { hint: AUTH_HINT });
+        if (err.status === 503) throw new McpToolError(err.message, { hint: RATE_LIMIT_HINT });
+        throw new McpToolError(err.message);
+      }
+      // A 2xx body that isn't JSON throws a SyntaxError out of fetchJson's parse.
+      if (err instanceof SyntaxError) {
+        throw new McpToolError(`GetYourGuide returned a non-JSON response for GET ${path}.`, { hint: NON_JSON_HINT });
+      }
+      // Timeouts / network failures propagate unchanged (as they did before).
+      throw err;
     }
   }
 }

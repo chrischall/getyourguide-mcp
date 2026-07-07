@@ -3,11 +3,9 @@ import {
   DEFAULT_BASE_URL,
   DEFAULT_RETRY_DELAY_MS,
   GYGClient,
-  RETRY_AFTER_CAP_MS,
   requestTimeoutMs,
   resolveBaseUrl,
   resolveLanguage,
-  retryDelayMs,
 } from '../src/client.js';
 import { VERSION } from '../src/version.js';
 
@@ -88,32 +86,6 @@ describe('requestTimeoutMs', () => {
   it('falls back on a non-positive value', () => {
     process.env.GYG_REQUEST_TIMEOUT_MS = '-1';
     expect(requestTimeoutMs()).toBe(30_000);
-  });
-});
-
-describe('retryDelayMs', () => {
-  it('defaults when the header is missing', () => {
-    expect(retryDelayMs(null)).toBe(DEFAULT_RETRY_DELAY_MS);
-  });
-
-  it('defaults on a non-numeric header', () => {
-    expect(retryDelayMs('later')).toBe(DEFAULT_RETRY_DELAY_MS);
-  });
-
-  it('defaults on a negative header', () => {
-    expect(retryDelayMs('-2')).toBe(DEFAULT_RETRY_DELAY_MS);
-  });
-
-  it('converts seconds to ms', () => {
-    expect(retryDelayMs('3')).toBe(3000);
-  });
-
-  it('honors zero', () => {
-    expect(retryDelayMs('0')).toBe(0);
-  });
-
-  it('caps large values', () => {
-    expect(retryDelayMs('60')).toBe(RETRY_AFTER_CAP_MS);
   });
 });
 
@@ -221,6 +193,26 @@ describe('GYGClient.get', () => {
       message: expect.stringContaining('GetYourGuide error 429'),
       hint: expect.stringContaining('Rate limited'),
     });
+  });
+
+  it('surfaces the rate-limit hint when a 503 persists after the retry', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    const { client } = makeClient([
+      jsonResponse({}, 503),
+      jsonResponse({ message: 'still overloaded' }, 503),
+    ]);
+    await expect(client.get('/tours')).rejects.toMatchObject({
+      message: expect.stringContaining('GetYourGuide error 503'),
+      hint: expect.stringContaining('Rate limited'),
+    });
+  });
+
+  it('propagates a network/transport error unchanged', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    const boom = new TypeError('network down');
+    const fetchFn = vi.fn().mockRejectedValue(boom);
+    const client = new GYGClient({ fetchFn: fetchFn as unknown as typeof fetch });
+    await expect(client.get('/tours')).rejects.toBe(boom);
   });
 
   it('throws an actionable auth error on 401', async () => {
