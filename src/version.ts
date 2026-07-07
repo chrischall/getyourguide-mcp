@@ -3,4 +3,4 @@
  * (registered in release-please-config.json `extra-files`). Import this
  * everywhere a version string is needed — never hand-bump it.
  */
-export const VERSION = '1.1.1'; // x-release-please-version
+export const VERSION = '1.1.2'; // x-release-please-version
