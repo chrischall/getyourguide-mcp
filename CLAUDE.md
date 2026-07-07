@@ -72,3 +72,12 @@ break. Watch the grammar split: classic endpoints take `cnt_language`
   PR titles are conventional commits (squash-merge).
 - PRs merge via the `chrischall/workflows` pipeline (auto-review → 
   `ready-to-merge` → auto-merge). Don't `gh pr merge`, don't self-arm.
+
+## Pull requests & release notes
+
+Apply exactly one release-notes label per PR (the fleet-standard set:
+`enhancement`, `bug`, `security`, `refactor`, `documentation`, `test`,
+`dependencies`, `ci`/`github_actions`, `ignore-for-release`), matching the
+Conventional-Commit prefix in the PR title.
+
+**Exception for first-party dependency bumps.** When bumping a package we own (`@chrischall/mcp-utils`, `@chrischall/realty-core`, `@fetchproxy/server` — anything published from a chrischall-owned repo), label the PR `enhancement` or `bug` instead of `dependencies`, and use the matching Conventional-Commit prefix (`feat:` or `fix:`) instead of `chore:`/`build(deps):`. Those bumps deliver real product fixes or features through us, so they should drive a release-please version bump and show up under Features/Bug Fixes in the release notes — not get hidden under "Dependencies" (which doesn't trigger a release).
