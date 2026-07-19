@@ -7,9 +7,11 @@
 #
 #   1. protect-default-branch — block branch deletion and force-pushes.
 #   2. require-pr-and-ci      — require a PR (0 approvals; squash only) and
-#      the `ci / ci` required check. The shared reusable-mcp-ci fails fast on
-#      un-armed PRs, so an unreviewed PR shows a failing required check and
-#      cannot merge until pr-auto-review arms it with `ready-to-merge`.
+#      the `ci-gated` required check. CI runs the shared arm-gate in status
+#      mode, which posts the `ci-gated` COMMIT STATUS itself: yellow/pending on
+#      an un-armed PR, green once pr-auto-review arms it with `ready-to-merge`
+#      and CI passes. It is a status context, not a job name — this script
+#      previously wrote `ci / ci`, which nothing reports under status mode.
 #
 #   Repo settings: squash-only merges (PR title becomes the squash subject —
 #   release-please parses it, so it must stay the conventional-commit title),
@@ -78,7 +80,7 @@ upsert_ruleset "require-pr-and-ci" '{
       "parameters": {
         "strict_required_status_checks_policy": false,
         "required_status_checks": [
-          { "context": "ci / ci" }
+          { "context": "ci-gated" }
         ]
       }
     }
