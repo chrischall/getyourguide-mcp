@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3](https://github.com/chrischall/getyourguide-mcp/compare/v1.1.2...v1.1.3) (2026-07-19)
+
+
+### Bug Fixes
+
+* require the ci-gated status, not the ci / ci job name ([#27](https://github.com/chrischall/getyourguide-mcp/issues/27)) ([7d0310c](https://github.com/chrischall/getyourguide-mcp/commit/7d0310c08ff5ace1d028678ec60d4d0ca6ca185f))
+
 ## [1.1.2](https://github.com/chrischall/getyourguide-mcp/compare/v1.1.1...v1.1.2) (2026-07-07)
 
 
