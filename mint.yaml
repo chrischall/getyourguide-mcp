@@ -26,9 +26,16 @@ env:
     help: >-
       Overrides the upstream API base URL. Leave unset for the default; if you
       change it, update egress.allow to match.
+  - name: GYG_REQUEST_TIMEOUT_MS
+    required: false
+    help: >-
+      Per-request timeout in milliseconds (default 30000). Raise it if searches
+      time out on slow upstream responses.
 egress:
   allow:
-    # Only hosts the SERVER process actually fetches. Hosts that appear
-    # solely in a URL this server BUILDS and returns are excluded.
+    # The GetYourGuide Partner API — the only host the server fetches
+    # (client.ts's base URL, overridable via GYG_BASE_URL).
+    #
+    # partner.getyourguide.com is deliberately NOT here: it appears only inside
+    # an error message telling the user where to sign up for an API key.
     - api.getyourguide.com
-    - partner.getyourguide.com
