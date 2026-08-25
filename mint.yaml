@@ -1,0 +1,41 @@
+version: 1
+name: GetYourGuide
+slug: getyourguide
+summary: >-
+  GetYourGuide tours and activities for Claude — search, details, options,
+  and reviews
+env:
+  - name: GYG_API_KEY
+    secret: true
+    required: true
+    help: >-
+      Your GetYourGuide Partner API key (X-ACCESS-TOKEN). Get one by joining the
+      GetYourGuide partner program at partner.getyourguide.com.
+  - name: GYG_CURRENCY
+    required: false
+    help: >-
+      Default currency for prices (ISO 4217, e.g. USD or EUR). Optional —
+      individual tool calls can override it.
+  - name: GYG_LANGUAGE
+    required: false
+    help: >-
+      Default content language (e.g. en, de). Optional — individual tool calls
+      can override it.
+  - name: GYG_BASE_URL
+    required: false
+    help: >-
+      Overrides the upstream API base URL. Leave unset for the default; if you
+      change it, update egress.allow to match.
+  - name: GYG_REQUEST_TIMEOUT_MS
+    required: false
+    help: >-
+      Per-request timeout in milliseconds (default 30000). Raise it if searches
+      time out on slow upstream responses.
+egress:
+  allow:
+    # The GetYourGuide Partner API — the only host the server fetches
+    # (client.ts's base URL, overridable via GYG_BASE_URL).
+    #
+    # partner.getyourguide.com is deliberately NOT here: it appears only inside
+    # an error message telling the user where to sign up for an API key.
+    - api.getyourguide.com
