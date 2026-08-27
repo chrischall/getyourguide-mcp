@@ -12,8 +12,8 @@ conventions; this file covers only what's specific here.
 ```bash
 npm install
 npm run build          # tsc + esbuild bundle → dist/ (bin: dist/index.js, mcpb: dist/bundle.js)
-npm test               # vitest run
-npm run test:coverage  # the CI gate — 100% lines/branches/functions/statements on src/ (index.ts excluded)
+npm test               # tsc typecheck + vitest run
+npm run test:coverage  # the CI gate: tsc typecheck, then 100% lines/branches/functions/statements on src/ (index.ts excluded)
 npx vitest run tests/client.test.ts   # single file
 ```
 
