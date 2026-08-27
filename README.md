@@ -86,8 +86,8 @@ see `.env.example`).
 ```bash
 npm install
 npm run build          # tsc + esbuild bundle → dist/
-npm test               # vitest (no network — everything mocked)
-npm run test:coverage  # the CI gate: 100% lines/branches/functions/statements
+npm test               # tsc typecheck + vitest (no network — everything mocked)
+npm run test:coverage  # tsc typecheck + the CI gate: 100% lines/branches/functions/statements
 ```
 
 Releases are automated with release-please; don't hand-bump versions. PR
