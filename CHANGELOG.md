@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.4](https://github.com/chrischall/getyourguide-mcp/compare/v1.1.3...v1.1.4) (2026-08-27)
+
+
+### Documentation
+
+* npm test now typechecks before running vitest ([#49](https://github.com/chrischall/getyourguide-mcp/issues/49)) ([e6963ae](https://github.com/chrischall/getyourguide-mcp/commit/e6963ae6b322f4ef252b23d10741af305b451f36))
+* **readme:** npm test now typechecks before running vitest ([#51](https://github.com/chrischall/getyourguide-mcp/issues/51)) ([c912715](https://github.com/chrischall/getyourguide-mcp/commit/c9127157d91c70bfeaaf545ddae86dcc32ab1f40))
+
 ## [1.1.3](https://github.com/chrischall/getyourguide-mcp/compare/v1.1.2...v1.1.3) (2026-07-26)
 
 
