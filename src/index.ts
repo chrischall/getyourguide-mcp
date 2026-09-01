@@ -2,6 +2,7 @@
 import { runMcp } from '@chrischall/mcp-utils';
 import { client } from './client.js';
 import { registerTaxonomyTools } from './tools/taxonomy.js';
+import { registerHealthcheckTools } from './tools/health.js';
 import { registerTourTools } from './tools/tours.js';
 import { VERSION } from './version.js';
 
@@ -15,7 +16,7 @@ await runMcp({
   name: 'getyourguide',
   version: VERSION,
   deps: client,
-  tools: [registerTourTools, registerTaxonomyTools],
+  tools: [registerTourTools, registerTaxonomyTools, registerHealthcheckTools],
   banner:
     '[getyourguide-mcp] This project was developed and is maintained by AI (Claude). Use at your own discretion.',
 });
