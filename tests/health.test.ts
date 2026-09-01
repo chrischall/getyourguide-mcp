@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { registerHealthcheckTools } from '../src/tools/health.js';
+import { readFileSync } from 'node:fs';
+import { McpToolError } from '@chrischall/mcp-utils';
+import { registerHealthcheckTools, CLIENT_ERROR_TEXT } from '../src/tools/health.js';
 import type { GYGClient } from '../src/client.js';
 
 function setup(env: Record<string, string | undefined>, probe?: () => Promise<unknown>) {
@@ -43,13 +45,23 @@ describe('gyg_healthcheck', () => {
   });
 
   it('reports a rejected key as credential_rejected, pointing at the key not its scope', async () => {
-    const out = await setup(FULL, async () => { throw new Error('The API key was rejected. Either GYG_API_KEY is wrong, or the key does not have access to this endpoint.'); }).call();
+    // Built the way client.ts builds it: status summary on the message, the
+    // actionable text on the HINT. Matching only the message is the bug.
+    const out = await setup(FULL, async () => {
+      throw new McpToolError('GetYourGuide GET /categories failed with 401', {
+        hint: 'The API key was rejected. Either GYG_API_KEY is wrong, or the key does not have access to this endpoint.',
+      });
+    }).call();
     expect(out.error.kind).toBe('credential_rejected');
     expect(out.hint).toMatch(/key itself rather than its scope/);
   });
 
   it('separates rate limiting from a rejected key', async () => {
-    const out = await setup(FULL, async () => { throw new Error('Rate limited even after one retry — wait a minute'); }).call();
+    const out = await setup(FULL, async () => {
+      throw new McpToolError('GetYourGuide GET /categories failed with 429', {
+        hint: 'Rate limited even after one retry — wait a minute before trying again, and space out bulk lookups.',
+      });
+    }).call();
     expect(out.error.kind).toBe('rate_limited');
     expect(out.error.kind).not.toBe('credential_rejected');
   });
@@ -63,6 +75,25 @@ describe('gyg_healthcheck', () => {
     const out = await setup(FULL, async () => { throw new Error('socket hang up'); }).call();
     expect(out.ok).toBe(false);
     expect(out.error.kind).not.toBe('rate_limited');
+  });
+
+  // A 503 carries the RATE-LIMIT hint, not the auth one. Classifying on a
+  // status code alone would misread it as an auth failure.
+  it('reads a persisting 503 as rate limiting, not a rejected key', async () => {
+    const out = await setup(FULL, async () => {
+      throw new McpToolError('GetYourGuide GET /categories failed with 503', {
+        hint: 'Rate limited even after one retry — wait a minute before trying again, and space out bulk lookups.',
+      });
+    }).call();
+    expect(out.error.kind).toBe('rate_limited');
+  });
+
+  // The guard for the class of bug the auto-review caught.
+  it('keys only on text client.ts actually produces', () => {
+    const clientSource = readFileSync(new URL('../src/client.ts', import.meta.url), 'utf8');
+    for (const [arm, text] of Object.entries(CLIENT_ERROR_TEXT)) {
+      expect(clientSource, `${arm}: "${text}" no longer appears in client.ts`).toContain(text);
+    }
   });
 
   it('classifies a non-Error throw without crashing', async () => {
