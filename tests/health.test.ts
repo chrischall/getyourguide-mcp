@@ -88,6 +88,24 @@ describe('gyg_healthcheck', () => {
     expect(out.error.kind).toBe('rate_limited');
   });
 
+  // The status-code fallbacks exist for the case client.ts does NOT attach a
+  // known hint — a raw upstream error, or a reworded one. Without a hint that
+  // matches, only the status makes these decisive, which is exactly what the
+  // review on #64 found untested.
+  it('falls back to the status code when no known hint is attached', async () => {
+    const rejected = await setup(FULL, async () => { throw new Error('GetYourGuide GET /categories failed with 401'); }).call();
+    expect(rejected.error.kind).toBe('credential_rejected');
+
+    const limited = await setup(FULL, async () => { throw new Error('GetYourGuide GET /categories failed with 429'); }).call();
+    expect(limited.error.kind).toBe('rate_limited');
+  });
+
+  it('does not mistake an unrelated number for a status code', async () => {
+    const out = await setup(FULL, async () => { throw new Error('read 401503 bytes then failed'); }).call();
+    expect(out.error.kind).not.toBe('credential_rejected');
+    expect(out.error.kind).not.toBe('rate_limited');
+  });
+
   // The guard for the class of bug the auto-review caught.
   it('keys only on text client.ts actually produces', () => {
     const clientSource = readFileSync(new URL('../src/client.ts', import.meta.url), 'utf8');
