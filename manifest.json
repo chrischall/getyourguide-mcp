@@ -93,6 +93,10 @@
     {
       "name": "gyg_list_location_tours",
       "description": "List tours available at a location"
+    },
+    {
+      "name": "gyg_healthcheck",
+      "description": "Resolves the credential the way real tools do, then makes one authenticated request to api.getyourguide.com. Reports which source supplied the credential, whether api.getyourguide.com accepted it, the round-trip time, and a plain-English hint distinguishing 'no credential' from 'credential rejected' from a 'api.getyourguide.com-side problem'. Call this when a real tool fails and you want to know which hop broke. Read-only; never returns the credential itself."
     }
   ],
   "compatibility": {
