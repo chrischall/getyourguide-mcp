@@ -45,6 +45,7 @@ Get an API key by joining the free partner program at
 | `gyg_list_category_tours` | Browse tours in one category |
 | `gyg_get_location` | Resolve a location ID (city / POI / region) |
 | `gyg_list_location_tours` | Browse everything bookable at a location |
+| `gyg_healthcheck()` | Is this connector working? Reports which credential resolved, whether api.getyourguide.com accepted it, and what to fix. Start here when another tool fails — an empty result can mean "no data" or "never authenticated", and this separates them. |
 
 ## Usage notes
 

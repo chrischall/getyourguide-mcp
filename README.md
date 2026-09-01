@@ -25,6 +25,7 @@ All tools are read-only — this server registers no write tools.
 | `gyg_list_category_tours` | Tours in one category |
 | `gyg_get_location` | Details for a location (city, POI, region) by ID |
 | `gyg_list_location_tours` | Tours available at one location |
+| `gyg_healthcheck` | Verify credentials and upstream reachability; reports failures as data, not exceptions |
 
 ## Setup
 
