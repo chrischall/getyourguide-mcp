@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.2.0](https://github.com/chrischall/getyourguide-mcp/compare/v1.1.4...v1.2.0) (2026-09-01)
+
+
+### Features
+
+* **health:** add gyg_healthcheck ([#60](https://github.com/chrischall/getyourguide-mcp/issues/60)) ([57cc38c](https://github.com/chrischall/getyourguide-mcp/commit/57cc38c273752532bc8ec7fd907b2698b40ecc95))
+
+
+### Bug Fixes
+
+* **health:** classify gyg errors on the hint, not just the message ([#63](https://github.com/chrischall/getyourguide-mcp/issues/63)) ([d7ae758](https://github.com/chrischall/getyourguide-mcp/commit/d7ae758e89a9a09fb3715d4e754e811fa6cd0a39))
+
+
+### Documentation
+
+* **health:** list gyg_healthcheck in manifest.json and the tool docs ([#65](https://github.com/chrischall/getyourguide-mcp/issues/65)) ([1cb08ba](https://github.com/chrischall/getyourguide-mcp/commit/1cb08ba91412ca466e04289bfe16bbecd9fdaa66))
+
 ## [1.1.4](https://github.com/chrischall/getyourguide-mcp/compare/v1.1.3...v1.1.4) (2026-08-27)
 
 
