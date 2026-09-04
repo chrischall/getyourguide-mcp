@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0](https://github.com/chrischall/getyourguide-mcp/compare/v1.2.0...v1.3.0) (2026-09-04)
+
+
+### Features
+
+* **tools:** compact by default, on the projection this repo already had ([#71](https://github.com/chrischall/getyourguide-mcp/issues/71)) ([e791394](https://github.com/chrischall/getyourguide-mcp/commit/e791394f093e8ac2e4939be30c6f825d360d2e90))
+
+
+### Bug Fixes
+
+* **deps:** pick up @chrischall/mcp-utils 0.23.2 ([#75](https://github.com/chrischall/getyourguide-mcp/issues/75)) ([3920acc](https://github.com/chrischall/getyourguide-mcp/commit/3920acc52f9e017290d1bf2e12e0fe1793a8d3ae))
+
 ## [1.2.0](https://github.com/chrischall/getyourguide-mcp/compare/v1.1.4...v1.2.0) (2026-09-01)
 
 
