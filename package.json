@@ -3,7 +3,7 @@
   "version": "1.2.0",
   "license": "MIT",
   "mcpName": "io.github.chrischall/getyourguide-mcp",
-  "description": "GetYourGuide MCP server for Claude \u2014 search tours and activities via the GetYourGuide Partner API. Developed and maintained by AI (Claude Code)",
+  "description": "GetYourGuide MCP server for Claude — search tours and activities via the GetYourGuide Partner API. Developed and maintained by AI (Claude Code)",
   "author": "Claude Code (AI) <https://www.anthropic.com/claude>",
   "repository": {
     "type": "git",
