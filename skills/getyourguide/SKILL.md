@@ -37,7 +37,7 @@ Get an API key by joining the free partner program at
 
 | Tool | Use it to |
 | --- | --- |
-| `gyg_search_tours` | Find tours by free text / location / category / date range. Start here. Prefer `compact: true` when browsing — full records are verbose. |
+| `gyg_search_tours` | Find tours by free text / location / category / date range. Start here. |
 | `gyg_get_tour` | Pull the full record once a tour is chosen |
 | `gyg_get_tour_options` | See bookable options (ticket types, times) for a tour, optionally within dates |
 | `gyg_get_tour_reviews` | Read customer reviews for a tour |
@@ -46,6 +46,20 @@ Get an API key by joining the free partner program at
 | `gyg_get_location` | Resolve a location ID (city / POI / region) |
 | `gyg_list_location_tours` | Browse everything bookable at a location |
 | `gyg_healthcheck()` | Is this connector working? Reports which credential resolved, whether api.getyourguide.com accepted it, and what to fix. Start here when another tool fails — an empty result can mean "no data" or "never authenticated", and this separates them. |
+
+## Response shape
+
+`gyg_search_tours`, `gyg_get_tour`, `gyg_list_category_tours` and
+`gyg_list_location_tours` take `view: "compact" | "full"`, and **`compact` is
+the default** — you get the slim projection without asking for it. Pass
+`view: "full"` for the whole GetYourGuide record.
+
+The other tools take no `view`: their responses are already narrow, and a rung
+that cannot change anything is worse than no parameter.
+
+(This replaced an opt-in `compact: true` flag. Passing `compact` now does
+nothing — zod drops the unknown key and you get the compact rung regardless,
+which is what the flag used to ask for.)
 
 ## Usage notes
 
