@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/chrischall/getyourguide-mcp/compare/v1.3.0...v1.3.1) (2026-09-04)
+
+
+### Documentation
+
+* **skill:** the skill still told callers to pass `compact: true` ([#76](https://github.com/chrischall/getyourguide-mcp/issues/76)) ([4b28af9](https://github.com/chrischall/getyourguide-mcp/commit/4b28af9cc1aef47e4a687fc83fdab7e175977d4b))
+
 ## [1.3.0](https://github.com/chrischall/getyourguide-mcp/compare/v1.2.0...v1.3.0) (2026-09-04)
 
 
