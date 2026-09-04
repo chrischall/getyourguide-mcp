@@ -1,6 +1,7 @@
 // Tour tools: search, detail, bookable options, and reviews. All read-only
 // GETs against the Partner API — this server registers no write tools.
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { viewArg, viewResponse } from '../view.js';
 import { z } from 'zod';
 import { resolveLanguage, type GYGClient } from '../client.js';
 import { parseGYG } from '../validate.js';
@@ -24,7 +25,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
     {
       description:
         'Search GetYourGuide tours and activities. Filter by free text (or "iata:<code>" for airports), location ID, ' +
-        'category ID, and date range; sort by popularity, price, or rating. Set compact=true for slim summaries when browsing.',
+        'category ID, and date range; sort by popularity, price, or rating. Returns slim summaries by default; pass view:"full" for the whole records.',
       annotations: { readOnlyHint: true },
       inputSchema: {
         q: z.string().optional().describe('Free-text search, e.g. "louvre skip the line" or "iata:jfk".'),
@@ -38,10 +39,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
         sortDirection: z.enum(['asc', 'desc']).optional().describe('Sort direction (ignored for popularity).'),
         currency: currencyArg,
         language: languageArg,
-        compact: z
-          .boolean()
-          .default(false)
-          .describe('Return slim tour summaries instead of full records (recommended for browsing).'),
+        view: viewArg(),
         ...paginationArgs,
         extraParams: extraParamsArg,
       },
@@ -61,7 +59,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
         ...args.extraParams,
       });
       const validated = parseGYG(ToursEnvelope, raw, 'GET /tours');
-      return jsonResponse(args.compact ? compactTours(validated) : validated);
+      return viewResponse(args.view, validated, { tours: true });
     },
   );
 

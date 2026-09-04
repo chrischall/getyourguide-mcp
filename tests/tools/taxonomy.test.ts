@@ -41,10 +41,10 @@ describe('gyg_list_categories', () => {
 });
 
 describe('gyg_list_category_tours', () => {
-  it('GETs /tours filtered by categories[] and passes the full envelope through', async () => {
+  it('GETs /tours filtered by categories[] and passes the full envelope through on view:"full"', async () => {
     const client = makeClient(envelope);
     setup(client);
-    const result = await handlers.get('gyg_list_category_tours')!({ categoryId: 9, currency: 'EUR', limit: 2, offset: 0 });
+    const result = await handlers.get('gyg_list_category_tours')!({ view: 'full', categoryId: 9, currency: 'EUR', limit: 2, offset: 0 });
     expect(client.get).toHaveBeenCalledWith('/tours', {
       'categories[]': 9,
       currency: 'EUR',
@@ -58,7 +58,7 @@ describe('gyg_list_category_tours', () => {
   it('compacts tours when compact=true', async () => {
     const client = makeClient(envelope);
     setup(client);
-    const result = await handlers.get('gyg_list_category_tours')!({ categoryId: 9, compact: true });
+    const result = await handlers.get('gyg_list_category_tours')!({ categoryId: 9, view: 'compact' });
     expect(JSON.parse(result.content[0].text)).toEqual({
       _metadata: { totalCount: 1 },
       tours: [{ tour_id: 1, title: 'Walking tour' }],
@@ -76,10 +76,10 @@ describe('gyg_get_location', () => {
 });
 
 describe('gyg_list_location_tours', () => {
-  it('GETs /locations/{id}/tours and passes through by default', async () => {
+  it('GETs /locations/{id}/tours and passes through on view:"full"', async () => {
     const client = makeClient(envelope);
     setup(client);
-    const result = await handlers.get('gyg_list_location_tours')!({ locationId: 57, limit: 1, offset: 0 });
+    const result = await handlers.get('gyg_list_location_tours')!({ view: 'full', locationId: 57, limit: 1, offset: 0 });
     expect(client.get).toHaveBeenCalledWith('/locations/57/tours', {
       currency: undefined,
       cnt_language: undefined,
@@ -92,7 +92,7 @@ describe('gyg_list_location_tours', () => {
   it('compacts tours when compact=true', async () => {
     const client = makeClient(envelope);
     setup(client);
-    const result = await handlers.get('gyg_list_location_tours')!({ locationId: 57, compact: true });
+    const result = await handlers.get('gyg_list_location_tours')!({ locationId: 57, view: 'compact' });
     expect(JSON.parse(result.content[0].text)).toEqual({
       _metadata: { totalCount: 1 },
       tours: [{ tour_id: 1, title: 'Walking tour' }],

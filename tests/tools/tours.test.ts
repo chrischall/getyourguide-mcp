@@ -34,7 +34,7 @@ describe('gyg_search_tours', () => {
   it('maps args onto Partner API query params, including extraParams', async () => {
     const client = makeClient(envelope);
     setup(client);
-    const result = await handlers.get('gyg_search_tours')!({
+    const result = await handlers.get('gyg_search_tours')!({ view: 'full',
       q: 'louvre',
       locationId: 57,
       categoryId: 2,
@@ -67,14 +67,14 @@ describe('gyg_search_tours', () => {
   it('passes full datetimes through and sends a single-value date[] for dateFrom alone', async () => {
     const client = makeClient(envelope);
     setup(client);
-    await handlers.get('gyg_search_tours')!({ dateFrom: '2026-08-01T12:30:00' });
+    await handlers.get('gyg_search_tours')!({ view: 'full', dateFrom: '2026-08-01T12:30:00' });
     expect(client.get).toHaveBeenCalledWith('/tours', expect.objectContaining({ 'date[]': ['2026-08-01T12:30:00'] }));
   });
 
   it('rejects dateTo without dateFrom with an actionable error', async () => {
     const client = makeClient(envelope);
     setup(client);
-    await expect(handlers.get('gyg_search_tours')!({ dateTo: '2026-08-05' })).rejects.toMatchObject({
+    await expect(handlers.get('gyg_search_tours')!({ view: 'full', dateTo: '2026-08-05' })).rejects.toMatchObject({
       message: expect.stringContaining('dateTo was given without dateFrom'),
       hint: expect.stringContaining('dateFrom'),
     });
@@ -84,7 +84,7 @@ describe('gyg_search_tours', () => {
   it('returns compact summaries when compact=true', async () => {
     const client = makeClient(envelope);
     setup(client);
-    const result = await handlers.get('gyg_search_tours')!({ compact: true });
+    const result = await handlers.get('gyg_search_tours')!({ view: 'compact' });
     expect(JSON.parse(result.content[0].text)).toEqual({
       _metadata: { totalCount: 1 },
       tours: [{ tour_id: 23776, title: 'Louvre' }],
@@ -96,7 +96,7 @@ describe('gyg_search_tours', () => {
     const drifted = { activities: [] };
     const client = makeClient(drifted);
     setup(client);
-    const result = await handlers.get('gyg_search_tours')!({ compact: true });
+    const result = await handlers.get('gyg_search_tours')!({ view: 'compact' });
     expect(JSON.parse(result.content[0].text)).toEqual(drifted);
     expect(warn).toHaveBeenCalled();
   });
