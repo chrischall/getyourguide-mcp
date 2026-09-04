@@ -55,13 +55,45 @@ describe('gyg_list_category_tours', () => {
     expect(JSON.parse(result.content[0].text)).toEqual(envelope);
   });
 
-  it('compacts tours when compact=true', async () => {
+  it('compacts tours on an explicit view:"compact"', async () => {
     const client = makeClient(envelope);
     setup(client);
     const result = await handlers.get('gyg_list_category_tours')!({ categoryId: 9, view: 'compact' });
     expect(JSON.parse(result.content[0].text)).toEqual({
       _metadata: { totalCount: 1 },
       tours: [{ tour_id: 1, title: 'Walking tour' }],
+    });
+  });
+
+  // The rollout's claim, at this tool's boundary: the caller passes NO view and
+  // still gets the projection. The `view: 'compact'` case above would keep
+  // passing if the default silently flipped back to `full`.
+  it('projects by default when no view argument is passed', async () => {
+    const client = makeClient(envelope);
+    setup(client);
+    const result = await handlers.get('gyg_list_category_tours')!({ categoryId: 9 });
+    const text = result.content[0].text;
+    expect(JSON.parse(text)).toEqual({
+      _metadata: { totalCount: 1 },
+      tours: [{ tour_id: 1, title: 'Walking tour' }],
+    });
+    // …and minified: jsonResponse pretty-prints, viewResponse does not, and no
+    // content assertion can tell the two apart.
+    expect(text).not.toMatch(/\n/);
+  });
+
+  // `view` is ours; GetYourGuide has never heard of it. The query params must be
+  // identical whether or not a caller named a rung.
+  it('never sends view upstream as a query param', async () => {
+    const client = makeClient(envelope);
+    setup(client);
+    await handlers.get('gyg_list_category_tours')!({ categoryId: 9, view: 'full' });
+    expect(client.get).toHaveBeenCalledWith('/tours', {
+      'categories[]': 9,
+      currency: undefined,
+      cnt_language: undefined,
+      limit: undefined,
+      offset: undefined,
     });
   });
 });
@@ -89,13 +121,40 @@ describe('gyg_list_location_tours', () => {
     expect(JSON.parse(result.content[0].text)).toEqual(envelope);
   });
 
-  it('compacts tours when compact=true', async () => {
+  it('compacts tours on an explicit view:"compact"', async () => {
     const client = makeClient(envelope);
     setup(client);
     const result = await handlers.get('gyg_list_location_tours')!({ locationId: 57, view: 'compact' });
     expect(JSON.parse(result.content[0].text)).toEqual({
       _metadata: { totalCount: 1 },
       tours: [{ tour_id: 1, title: 'Walking tour' }],
+    });
+  });
+
+  // Same default-rung claim on the third listing tool. Each of the three wires
+  // `viewResponse` separately, so one of them reverting is a live possibility
+  // that no shared test would catch.
+  it('projects by default when no view argument is passed', async () => {
+    const client = makeClient(envelope);
+    setup(client);
+    const result = await handlers.get('gyg_list_location_tours')!({ locationId: 57 });
+    const text = result.content[0].text;
+    expect(JSON.parse(text)).toEqual({
+      _metadata: { totalCount: 1 },
+      tours: [{ tour_id: 1, title: 'Walking tour' }],
+    });
+    expect(text).not.toMatch(/\n/);
+  });
+
+  it('never sends view upstream as a query param', async () => {
+    const client = makeClient(envelope);
+    setup(client);
+    await handlers.get('gyg_list_location_tours')!({ locationId: 57, view: 'full' });
+    expect(client.get).toHaveBeenCalledWith('/locations/57/tours', {
+      currency: undefined,
+      cnt_language: undefined,
+      limit: undefined,
+      offset: undefined,
     });
   });
 });

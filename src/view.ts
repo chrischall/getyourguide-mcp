@@ -30,10 +30,20 @@ export const viewArg = (): ReturnType<typeof viewParam> => viewParam(GYG_VIEWS, 
 /**
  * Answer in the requested rung.
  *
- * `tours: true` opts a payload into the field projection as well. Without it
- * compact still strips media, which is the part that needs no knowledge of the
- * shape — `compactTours` already returns the payload untouched (with a stderr
- * warning) when `data.tours` is not where it expects.
+ * `tours: true` opts a payload into the field projection as well — the three
+ * LISTING tools (`gyg_search_tours`, `gyg_list_category_tours`,
+ * `gyg_list_location_tours`), whose `data.tours` array is the shape
+ * `compactTours` was written against.
+ *
+ * Without it compact still strips media, which is the part that needs no
+ * knowledge of the shape. That arm is not a hypothetical: `gyg_get_tour`
+ * answers ONE record — no `data.tours` array for the projection to read, and
+ * the picture size variants `COMPACT_TOUR_KEYS` calls fat still in it — so it
+ * takes this path. A rung with no call site is dead code dressed as a feature.
+ *
+ * `compactTours` already returns the payload untouched (with a stderr warning)
+ * when `data.tours` is not where it expects, so drift on the projected path
+ * degrades rather than empties.
  */
 export function viewResponse(
   view: string | undefined,

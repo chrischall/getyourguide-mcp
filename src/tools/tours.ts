@@ -6,7 +6,6 @@ import { z } from 'zod';
 import { resolveLanguage, type GYGClient } from '../client.js';
 import { parseGYG } from '../validate.js';
 import {
-  compactTours,
   currencyArg,
   dateRangeArgs,
   dateRangeParam,
@@ -66,12 +65,15 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
   server.registerTool(
     'gyg_get_tour',
     {
-      description: 'Get the full GetYourGuide record for one tour/activity by its numeric ID.',
+      description:
+        'Get the full GetYourGuide record for one tour/activity by its numeric ID. Image URLs are stripped by ' +
+        'default; pass view:"full" to keep them.',
       annotations: { readOnlyHint: true },
       inputSchema: {
         tourId: tourIdArg,
         currency: currencyArg,
         language: languageArg,
+        view: viewArg(),
       },
     },
     async (args) => {
@@ -79,7 +81,15 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
         currency: args.currency,
         cnt_language: args.language,
       });
-      return jsonResponse(raw);
+      // The one place the MEDIA-STRIP rung earns its keep here, and the reason
+      // it is not dead code. `COMPACT_TOUR_KEYS`' docblock names "picture size
+      // variants" as the fat this repo's grounded projection drops — but that
+      // projection only ever runs on a `data.tours` LISTING envelope, and this
+      // endpoint answers ONE record carrying exactly those variants. There is no
+      // verified field list for the single-tour shape, so no `tours: true`: the
+      // subtractive rule is the honest ceiling, and it cannot lose a field
+      // nobody knew about.
+      return viewResponse(args.view, raw);
     },
   );
 

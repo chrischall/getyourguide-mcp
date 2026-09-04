@@ -12,7 +12,6 @@ import { z } from 'zod';
 import type { GYGClient } from '../client.js';
 import { parseGYG } from '../validate.js';
 import {
-  compactTours,
   currencyArg,
   jsonResponse,
   languageArg,

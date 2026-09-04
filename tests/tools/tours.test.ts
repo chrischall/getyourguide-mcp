@@ -91,6 +91,50 @@ describe('gyg_search_tours', () => {
     });
   });
 
+  // Compact used to be `compact: true` — opt-in, with the tool description asking
+  // the caller to pass it. The whole point of the rollout is that a caller who
+  // passes NO view argument at all now gets the slim answer, so that call is
+  // spelled out here rather than left implied by the `view: 'compact'` case above.
+  it('projects by default when no view argument is passed', async () => {
+    const client = makeClient(envelope);
+    setup(client);
+    const result = await handlers.get('gyg_search_tours')!({});
+    expect(JSON.parse(result.content[0].text)).toEqual({
+      _metadata: { totalCount: 1 },
+      tours: [{ tour_id: 23776, title: 'Louvre' }],
+    });
+  });
+
+  // `view` is a response-shape knob of ours; GetYourGuide has never heard of it.
+  // This handler builds its query object field by field, and this pins that: the
+  // params must be byte-identical whether or not a caller named a rung. (The
+  // `extraParams` escape hatch is the only route to the wire, and it is explicit.)
+  it('never sends view upstream as a query param', async () => {
+    const client = makeClient(envelope);
+    setup(client);
+    await handlers.get('gyg_search_tours')!({ q: 'louvre' });
+    const withoutView = (client.get as unknown as { mock: { calls: unknown[][] } }).mock.calls[0][1];
+
+    setup(client);
+    await handlers.get('gyg_search_tours')!({ q: 'louvre', view: 'full' });
+    const withView = (client.get as unknown as { mock: { calls: unknown[][] } }).mock.calls[1][1];
+
+    expect(withView).toEqual(withoutView);
+    expect(Object.keys(withView as object)).not.toContain('view');
+  });
+
+  // Minification is the other half of the change: `jsonResponse` pretty-prints,
+  // `viewResponse` does not. Asserted on the raw text because both parse
+  // identically, so no content assertion in this file can tell them apart.
+  it('emits one line of JSON on both rungs', async () => {
+    const client = makeClient(envelope);
+    setup(client);
+    for (const args of [{}, { view: 'full' }]) {
+      const result = await handlers.get('gyg_search_tours')!(args);
+      expect(result.content[0].text).not.toMatch(/\n/);
+    }
+  });
+
   it('degrades to the raw response on envelope drift', async () => {
     const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
     const drifted = { activities: [] };
@@ -103,12 +147,81 @@ describe('gyg_search_tours', () => {
 });
 
 describe('gyg_get_tour', () => {
+  // One record, carrying the picture size variants COMPACT_TOUR_KEYS calls fat
+  // and a coordinate block the listing projection also drops.
+  const record = {
+    tour_id: 23776,
+    title: 'Louvre',
+    abstract: 'Skip the line.',
+    pictures: [
+      { url: 'https://cdn.getyourguide.com/img/tour/abc/145.jpg', size: 145 },
+      { url: 'https://cdn.getyourguide.com/img/tour/abc/68.jpg', size: 68 },
+    ],
+    coordinates: { lat: 48.86, lng: 2.33 },
+  };
+
   it('GETs /tours/{id} with currency/language overrides', async () => {
-    const client = makeClient({ data: { tours: [{ tour_id: 23776 }] } });
+    const client = makeClient(record);
     setup(client);
     const result = await handlers.get('gyg_get_tour')!({ tourId: 23776, currency: 'USD', language: 'de' });
     expect(client.get).toHaveBeenCalledWith('/tours/23776', { currency: 'USD', cnt_language: 'de' });
     expect(result.content[0].type).toBe('text');
+  });
+
+  // This tool is what makes the media-strip rung a live path rather than dead
+  // code: it answers a single record, so there is no `data.tours` array for the
+  // grounded projection to read, and the subtractive rule is the honest ceiling.
+  // Compact must drop the pictures and keep everything else — including the
+  // coordinates the LISTING projection deliberately throws away, because nothing
+  // here claims to know which of GetYourGuide's fields a caller needs.
+  it('strips pictures but keeps every other field when no view argument is passed', async () => {
+    const client = makeClient(record);
+    setup(client);
+    const result = await handlers.get('gyg_get_tour')!({ tourId: 23776 });
+    expect(JSON.parse(result.content[0].text)).toEqual({
+      tour_id: 23776,
+      title: 'Louvre',
+      abstract: 'Skip the line.',
+      coordinates: { lat: 48.86, lng: 2.33 },
+    });
+  });
+
+  // A field GetYourGuide adds next month survives the default rung. This is the
+  // promise a guessed field list could not make, and it is why `gyg_get_tour`
+  // does NOT opt into `tours: true`.
+  it('passes through a field nobody anticipated', async () => {
+    const client = makeClient({ ...record, somethingNobodyAnticipated: { nested: [1, 2] } });
+    setup(client);
+    const result = await handlers.get('gyg_get_tour')!({ tourId: 23776 });
+    expect(JSON.parse(result.content[0].text)).toMatchObject({
+      somethingNobodyAnticipated: { nested: [1, 2] },
+    });
+  });
+
+  it('returns the pictures under view: "full"', async () => {
+    const client = makeClient(record);
+    setup(client);
+    const result = await handlers.get('gyg_get_tour')!({ tourId: 23776, view: 'full' });
+    expect(JSON.parse(result.content[0].text)).toEqual(record);
+  });
+
+  // `view` must not reach GetYourGuide: the query params are identical with and
+  // without it.
+  it('never sends view upstream as a query param', async () => {
+    const client = makeClient(record);
+    setup(client);
+    await handlers.get('gyg_get_tour')!({ tourId: 23776, view: 'full' });
+    expect(client.get).toHaveBeenCalledWith('/tours/23776', {
+      currency: undefined,
+      cnt_language: undefined,
+    });
+  });
+
+  it('emits one line of JSON', async () => {
+    const client = makeClient(record);
+    setup(client);
+    const result = await handlers.get('gyg_get_tour')!({ tourId: 23776 });
+    expect(result.content[0].text).not.toMatch(/\n/);
   });
 });
 
