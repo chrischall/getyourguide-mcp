@@ -42,5 +42,12 @@ export function viewResponse(
 ): ReturnType<typeof minifiedResult> {
   const rung: View = resolveView(view, GYG_VIEWS);
   if (rung !== 'compact') return minifiedResult(data);
-  return minifiedResult(stripMediaUrls(opts.tours === true ? compactTours(data) : data));
+  // A hand-written projection is NOT then media-stripped. `compactTour` was
+  // written with knowledge of the API and already drops the picture variants;
+  // running a blind subtractive rule over its output would let an un-grounded
+  // rule overrule a grounded one, which bit viator-mcp (#72) where the
+  // projection deliberately KEEPS a cover image. Media stripping is for the
+  // payloads that have no projection to speak for them.
+  if (opts.tours === true) return minifiedResult(compactTours(data));
+  return minifiedResult(stripMediaUrls(data));
 }
