@@ -1,0 +1,63 @@
+import { minifiedResult, resolveView, stripMediaUrls, viewParam, type View } from '@chrischall/mcp-utils';
+import { compactTours } from './tools/_shared.js';
+
+/**
+ * The rungs this server honours (`@chrischall/mcp-utils`' `view` vocabulary;
+ * `chrischall/workflows` `docs/fleet-conventions.md`, "Response shape").
+ *
+ * This repo is NOT the un-grounded tier. `_shared.ts` has carried
+ * `compactTour`/`compactTours` — a documented field projection with its own
+ * drift-safe fallback — all along, and it was opt-in: `compact: false`, with
+ * `gyg_search_tours`' description asking the caller to "Set compact=true for
+ * slim summaries when browsing". An efficiency that has to be requested is one
+ * that usually is not.
+ *
+ * So compact is the default now, and it does BOTH: the existing field
+ * projection where the payload has a `data.tours` array, and media stripping
+ * everywhere (which the field projection never did).
+ *
+ * No `raw` rung: `full` already returns the validated upstream payload.
+ */
+export const GYG_VIEWS = ['compact', 'full'] as const;
+
+const NOTE =
+  'compact returns the slim tour projection (id, title, price, duration, rating, cancellation) and strips ' +
+  'image URLs; "full" returns GetYourGuide\'s whole records.';
+
+/** The `view` parameter every read tool in this server takes. */
+export const viewArg = (): ReturnType<typeof viewParam> => viewParam(GYG_VIEWS, { note: NOTE });
+
+/**
+ * Answer in the requested rung.
+ *
+ * `tours: true` opts a payload into the field projection as well — the three
+ * LISTING tools (`gyg_search_tours`, `gyg_list_category_tours`,
+ * `gyg_list_location_tours`), whose `data.tours` array is the shape
+ * `compactTours` was written against.
+ *
+ * Without it compact still strips media, which is the part that needs no
+ * knowledge of the shape. That arm is not a hypothetical: `gyg_get_tour`
+ * answers ONE record — no `data.tours` array for the projection to read, and
+ * the picture size variants `COMPACT_TOUR_KEYS` calls fat still in it — so it
+ * takes this path. A rung with no call site is dead code dressed as a feature.
+ *
+ * `compactTours` already returns the payload untouched (with a stderr warning)
+ * when `data.tours` is not where it expects, so drift on the projected path
+ * degrades rather than empties.
+ */
+export function viewResponse(
+  view: string | undefined,
+  data: unknown,
+  opts: { tours?: boolean } = {},
+): ReturnType<typeof minifiedResult> {
+  const rung: View = resolveView(view, GYG_VIEWS);
+  if (rung !== 'compact') return minifiedResult(data);
+  // A hand-written projection is NOT then media-stripped. `compactTour` was
+  // written with knowledge of the API and already drops the picture variants;
+  // running a blind subtractive rule over its output would let an un-grounded
+  // rule overrule a grounded one, which bit viator-mcp (#72) where the
+  // projection deliberately KEEPS a cover image. Media stripping is for the
+  // payloads that have no projection to speak for them.
+  if (opts.tours === true) return minifiedResult(compactTours(data));
+  return minifiedResult(stripMediaUrls(data));
+}

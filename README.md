@@ -16,16 +16,33 @@ All tools are read-only — this server registers no write tools.
 
 | Tool | What it does |
 | --- | --- |
-| `gyg_search_tours` | Search tours/activities by free text, location, category, or date range; sortable; `compact` mode for slim summaries |
-| `gyg_get_tour` | Full record for one tour by numeric ID |
+| `gyg_search_tours` | Search tours/activities by free text, location, category, or date range; sortable; `view` |
+| `gyg_get_tour` | Full record for one tour by numeric ID; `view` |
 | `gyg_get_tour_options` | Bookable options of a tour (ticket types, times), optionally within a date range |
 | `gyg_get_tour_availability` | Booking availability of a tour: participant categories, addons, available dates |
 | `gyg_get_tour_reviews` | Customer reviews for a tour |
 | `gyg_list_categories` | Activity categories (IDs feed `gyg_search_tours` / `gyg_list_category_tours`) |
-| `gyg_list_category_tours` | Tours in one category |
+| `gyg_list_category_tours` | Tours in one category; `view` |
 | `gyg_get_location` | Details for a location (city, POI, region) by ID |
-| `gyg_list_location_tours` | Tours available at one location |
+| `gyg_list_location_tours` | Tours available at one location; `view` |
 | `gyg_healthcheck` | Verify credentials and upstream reachability; reports failures as data, not exceptions |
+
+### `view` — response shape
+
+The tools marked `view` above take `view: "compact" | "full"`, and **`compact` is
+the default**. An efficiency that has to be asked for is one that usually is not,
+so it is not opt-in — the old `compact: true` flag on `gyg_search_tours` is gone.
+
+- **`compact`** — on the three tour LISTINGS it returns the documented slim
+  projection (`tour_id`, `title`, `abstract`, `url`, `price`, `overall_rating`,
+  `number_of_ratings`, `durations`, `categories`, `locations`), flattened to
+  `{ _metadata, tours }`. On `gyg_get_tour` — one record, no listing envelope to
+  project — it instead strips image URLs and keeps everything else.
+- **`full`** — GetYourGuide's whole validated record, untouched.
+
+Reach for `full` when you need a field the projection does not carry (picture
+variants, coordinates, marketing copy). Every response is minified JSON either
+way: formatting whitespace is dropped, whitespace inside a value is not.
 
 ## Setup
 

@@ -7,22 +7,17 @@
 // is missing" pre-auth, i.e. the routes are real) — treat them as legacy and
 // expect them to be the first to drift.
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { viewArg, viewResponse } from '../view.js';
 import { z } from 'zod';
 import type { GYGClient } from '../client.js';
 import { parseGYG } from '../validate.js';
 import {
-  compactTours,
   currencyArg,
   jsonResponse,
   languageArg,
   paginationArgs,
   ToursEnvelope,
 } from './_shared.js';
-
-const compactArg = z
-  .boolean()
-  .default(false)
-  .describe('Return slim tour summaries instead of full records (recommended for browsing).');
 
 export function registerTaxonomyTools(server: McpServer, client: GYGClient): void {
   server.registerTool(
@@ -54,7 +49,7 @@ export function registerTaxonomyTools(server: McpServer, client: GYGClient): voi
         categoryId: z.number().int().positive().describe('Numeric category ID (from gyg_list_categories).'),
         currency: currencyArg,
         language: languageArg,
-        compact: compactArg,
+        view: viewArg(),
         ...paginationArgs,
       },
     },
@@ -70,7 +65,7 @@ export function registerTaxonomyTools(server: McpServer, client: GYGClient): voi
         offset: args.offset,
       });
       const validated = parseGYG(ToursEnvelope, raw, `GET /tours?categories[]=${args.categoryId}`);
-      return jsonResponse(args.compact ? compactTours(validated) : validated);
+      return viewResponse(args.view, validated, { tours: true });
     },
   );
 
@@ -101,7 +96,7 @@ export function registerTaxonomyTools(server: McpServer, client: GYGClient): voi
         locationId: z.number().int().positive().describe('Numeric location ID.'),
         currency: currencyArg,
         language: languageArg,
-        compact: compactArg,
+        view: viewArg(),
         ...paginationArgs,
       },
     },
@@ -113,7 +108,7 @@ export function registerTaxonomyTools(server: McpServer, client: GYGClient): voi
         offset: args.offset,
       });
       const validated = parseGYG(ToursEnvelope, raw, `GET /locations/${args.locationId}/tours`);
-      return jsonResponse(args.compact ? compactTours(validated) : validated);
+      return viewResponse(args.view, validated, { tours: true });
     },
   );
 }

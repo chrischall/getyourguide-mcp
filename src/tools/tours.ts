@@ -1,11 +1,11 @@
 // Tour tools: search, detail, bookable options, and reviews. All read-only
 // GETs against the Partner API — this server registers no write tools.
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { viewArg, viewResponse } from '../view.js';
 import { z } from 'zod';
 import { resolveLanguage, type GYGClient } from '../client.js';
 import { parseGYG } from '../validate.js';
 import {
-  compactTours,
   currencyArg,
   dateRangeArgs,
   dateRangeParam,
@@ -24,7 +24,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
     {
       description:
         'Search GetYourGuide tours and activities. Filter by free text (or "iata:<code>" for airports), location ID, ' +
-        'category ID, and date range; sort by popularity, price, or rating. Set compact=true for slim summaries when browsing.',
+        'category ID, and date range; sort by popularity, price, or rating. Returns slim summaries by default; pass view:"full" for the whole records.',
       annotations: { readOnlyHint: true },
       inputSchema: {
         q: z.string().optional().describe('Free-text search, e.g. "louvre skip the line" or "iata:jfk".'),
@@ -38,10 +38,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
         sortDirection: z.enum(['asc', 'desc']).optional().describe('Sort direction (ignored for popularity).'),
         currency: currencyArg,
         language: languageArg,
-        compact: z
-          .boolean()
-          .default(false)
-          .describe('Return slim tour summaries instead of full records (recommended for browsing).'),
+        view: viewArg(),
         ...paginationArgs,
         extraParams: extraParamsArg,
       },
@@ -61,19 +58,22 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
         ...args.extraParams,
       });
       const validated = parseGYG(ToursEnvelope, raw, 'GET /tours');
-      return jsonResponse(args.compact ? compactTours(validated) : validated);
+      return viewResponse(args.view, validated, { tours: true });
     },
   );
 
   server.registerTool(
     'gyg_get_tour',
     {
-      description: 'Get the full GetYourGuide record for one tour/activity by its numeric ID.',
+      description:
+        'Get the full GetYourGuide record for one tour/activity by its numeric ID. Image URLs are stripped by ' +
+        'default; pass view:"full" to keep them.',
       annotations: { readOnlyHint: true },
       inputSchema: {
         tourId: tourIdArg,
         currency: currencyArg,
         language: languageArg,
+        view: viewArg(),
       },
     },
     async (args) => {
@@ -81,7 +81,15 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
         currency: args.currency,
         cnt_language: args.language,
       });
-      return jsonResponse(raw);
+      // The one place the MEDIA-STRIP rung earns its keep here, and the reason
+      // it is not dead code. `COMPACT_TOUR_KEYS`' docblock names "picture size
+      // variants" as the fat this repo's grounded projection drops — but that
+      // projection only ever runs on a `data.tours` LISTING envelope, and this
+      // endpoint answers ONE record carrying exactly those variants. There is no
+      // verified field list for the single-tour shape, so no `tours: true`: the
+      // subtractive rule is the honest ceiling, and it cannot lose a field
+      // nobody knew about.
+      return viewResponse(args.view, raw);
     },
   );
 
