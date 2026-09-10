@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.2](https://github.com/chrischall/getyourguide-mcp/compare/v1.3.1...v1.3.2) (2026-09-10)
+
+
+### Bug Fixes
+
+* **deps:** @chrischall/mcp-utils 0.26.1 ([#86](https://github.com/chrischall/getyourguide-mcp/issues/86)) ([513858b](https://github.com/chrischall/getyourguide-mcp/commit/513858bec3af53bd56ebc3e3141f03b6cb8a845a))
+* **deps:** bump hono from 4.13.1 to 4.13.7 ([#84](https://github.com/chrischall/getyourguide-mcp/issues/84)) ([0f9b3f9](https://github.com/chrischall/getyourguide-mcp/commit/0f9b3f95faa19e958ddfd0a3dd0372ad21bcb819))
+* **deps:** declare the peer floors mcp-utils 0.26.1 requires ([#87](https://github.com/chrischall/getyourguide-mcp/issues/87)) ([d9d76be](https://github.com/chrischall/getyourguide-mcp/commit/d9d76befbffc7db37bb705bdf6bab9f0ef198476))
+
 ## [1.3.1](https://github.com/chrischall/getyourguide-mcp/compare/v1.3.0...v1.3.1) (2026-09-04)
 
 
