@@ -1,7 +1,7 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { readEnvVar } from '@chrischall/mcp-utils';
-import { registerCredentialHealthcheckTool } from '@chrischall/mcp-utils/healthcheck';
-import type { GYGClient } from '../client.js';
+import type { McpServer } from "@modelcontextprotocol/server";
+import { readEnvVar } from "@chrischall/mcp-utils";
+import { registerCredentialHealthcheckTool } from "@chrischall/mcp-utils/healthcheck";
+import type { GYGClient } from "../client.js";
 
 /**
  * `gyg_healthcheck` — the one call that answers "is this connector working?",
@@ -29,36 +29,47 @@ type ReadEnv = (key: string) => string | undefined;
  */
 export const CLIENT_ERROR_TEXT = {
   /** client.ts AUTH_HINT, on the hint of a 401/403. */
-  rejected: 'The API key was rejected',
+  rejected: "The API key was rejected",
   /** client.ts RATE_LIMIT_HINT, on the hint of a persisting 429/503. */
-  rateLimited: 'Rate limited even after one retry',
+  rateLimited: "Rate limited even after one retry",
   /** client.ts, when GYG_API_KEY is absent. */
-  noKey: 'GYG_API_KEY is not set',
+  noKey: "GYG_API_KEY is not set",
 } as const;
 
-export function classifyGygError(err: unknown): { kind: string; hint?: string } | undefined {
+export function classifyGygError(
+  err: unknown,
+): { kind: string; hint?: string } | undefined {
   // Search message AND hint: client.ts carries the actionable text on `.hint`
   // and a formatted status summary on `.message`.
   const message = err instanceof Error ? err.message : String(err);
-  const hint = typeof (err as { hint?: unknown })?.hint === 'string' ? (err as { hint: string }).hint : '';
+  const hint =
+    typeof (err as { hint?: unknown })?.hint === "string"
+      ? (err as { hint: string }).hint
+      : "";
   const text = `${message}\n${hint}`;
 
-  if (text.includes(CLIENT_ERROR_TEXT.noKey)) return { kind: 'no_credential' };
+  if (text.includes(CLIENT_ERROR_TEXT.noKey)) return { kind: "no_credential" };
 
   // Checked before the rejection arm: a 503 carries the rate-limit hint, and
   // a status-code match alone would misread it as an auth problem.
-  if (text.includes(CLIENT_ERROR_TEXT.rateLimited) || /\b429\b|\b503\b/.test(text)) {
+  if (
+    text.includes(CLIENT_ERROR_TEXT.rateLimited) ||
+    /\b429\b|\b503\b/.test(text)
+  ) {
     return {
-      kind: 'rate_limited',
-      hint: 'GetYourGuide rate-limited the probe even after a retry. The key is fine — wait a minute.',
+      kind: "rate_limited",
+      hint: "GetYourGuide rate-limited the probe even after a retry. The key is fine — wait a minute.",
     };
   }
-  if (text.includes(CLIENT_ERROR_TEXT.rejected) || /\b401\b|\b403\b/.test(text)) {
+  if (
+    text.includes(CLIENT_ERROR_TEXT.rejected) ||
+    /\b401\b|\b403\b/.test(text)
+  ) {
     return {
-      kind: 'credential_rejected',
+      kind: "credential_rejected",
       hint:
-        'GetYourGuide rejected the key on /categories — the most broadly available endpoint there is, so this ' +
-        'points at the key itself rather than its scope. Check GYG_API_KEY at https://partner.getyourguide.com.',
+        "GetYourGuide rejected the key on /categories — the most broadly available endpoint there is, so this " +
+        "points at the key itself rather than its scope. Check GYG_API_KEY at https://partner.getyourguide.com.",
     };
   }
   return undefined;
@@ -72,13 +83,15 @@ export function registerHealthcheckTools(
 ): void {
   registerCredentialHealthcheckTool({
     server,
-    prefix: 'gyg',
-    hostLabel: 'api.getyourguide.com',
-    probePath: '/categories',
-    resolveCredential: async () => ({ source: readEnv('GYG_API_KEY') ? 'GYG_API_KEY' : null }),
+    prefix: "gyg",
+    hostLabel: "api.getyourguide.com",
+    probePath: "/categories",
+    resolveCredential: async () => ({
+      source: readEnv("GYG_API_KEY") ? "GYG_API_KEY" : null,
+    }),
     // Taxonomy, not a tour search: cheap, stable, and available to every
     // partner key, so a failure here is unambiguous about the key.
-    probeFn: () => client.get('/categories'),
+    probeFn: () => client.get("/categories"),
     classifyThrown: classifyGygError,
   });
 }
