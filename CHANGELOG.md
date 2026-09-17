@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.0.0](https://github.com/chrischall/getyourguide-mcp/compare/v1.3.2...v2.0.0) (2026-09-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* **mcp:** migrate server to SDK v2 ([#92](https://github.com/chrischall/getyourguide-mcp/issues/92))
+
+### Features
+
+* **mcp:** migrate server to SDK v2 ([#92](https://github.com/chrischall/getyourguide-mcp/issues/92)) ([8a5d9d5](https://github.com/chrischall/getyourguide-mcp/commit/8a5d9d589fadfb439656866a6fe3578f9117b46e))
+
+
+### Bug Fixes
+
+* **mcp:** clean up SDK v2 migration ([#95](https://github.com/chrischall/getyourguide-mcp/issues/95)) ([ec86f08](https://github.com/chrischall/getyourguide-mcp/commit/ec86f08f732853c260287cfdbbce90aa1c5f7ce9)), closes [#93](https://github.com/chrischall/getyourguide-mcp/issues/93)
+
 ## [1.3.2](https://github.com/chrischall/getyourguide-mcp/compare/v1.3.1...v1.3.2) (2026-09-10)
 
 
