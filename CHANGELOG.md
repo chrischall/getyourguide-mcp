@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/chrischall/getyourguide-mcp/compare/v2.0.0...v2.1.0) (2026-09-19)
+
+
+### Features
+
+* **deps:** take mcp-utils 1.0.0, restoring server/discover ([#96](https://github.com/chrischall/getyourguide-mcp/issues/96)) ([3565700](https://github.com/chrischall/getyourguide-mcp/commit/3565700e840422fe54d4c0d79b4c752055cf2dd0)), closes [#97](https://github.com/chrischall/getyourguide-mcp/issues/97)
+
 ## [2.0.0](https://github.com/chrischall/getyourguide-mcp/compare/v1.3.2...v2.0.0) (2026-09-17)
 
 
