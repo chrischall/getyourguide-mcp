@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.1](https://github.com/chrischall/getyourguide-mcp/compare/v2.1.0...v2.1.1) (2026-09-23)
+
+
+### Bug Fixes
+
+* **deps:** require zod ^4.6.5 to match @chrischall/mcp-utils 2.4.0 ([#103](https://github.com/chrischall/getyourguide-mcp/issues/103)) ([1c53dfc](https://github.com/chrischall/getyourguide-mcp/commit/1c53dfc7c7ec0a35411440096c2f89c7b10ed5ca))
+* **deps:** upgrade @chrischall/mcp-utils to 2.4.0 and @fetchproxy/* to 3.2.0 ([#101](https://github.com/chrischall/getyourguide-mcp/issues/101)) ([3e81a41](https://github.com/chrischall/getyourguide-mcp/commit/3e81a41b88e7456b764f75813d9084bd3f7075c8))
+
 ## [2.1.0](https://github.com/chrischall/getyourguide-mcp/compare/v2.0.0...v2.1.0) (2026-09-19)
 
 
