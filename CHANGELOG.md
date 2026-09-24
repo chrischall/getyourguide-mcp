@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.2](https://github.com/chrischall/getyourguide-mcp/compare/v2.1.1...v2.1.2) (2026-09-24)
+
+
+### Bug Fixes
+
+* **deps:** bump dotenv from 17.4.2 to 18.0.2 in the production-majors group ([#106](https://github.com/chrischall/getyourguide-mcp/issues/106)) ([62e917c](https://github.com/chrischall/getyourguide-mcp/commit/62e917c2c3ddfa5083dbe5b127da4165d7a5146b))
+
 ## [2.1.1](https://github.com/chrischall/getyourguide-mcp/compare/v2.1.0...v2.1.1) (2026-09-23)
 
 
