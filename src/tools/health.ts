@@ -1,5 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/server';
-import { readEnvVar } from '@chrischall/mcp-utils';
+import { EdgeBlockedError, readEnvVar } from '@chrischall/mcp-utils';
 import { registerCredentialHealthcheckTool } from '@chrischall/mcp-utils/healthcheck';
 import type { GYGClient } from '../client.js';
 
@@ -37,6 +37,10 @@ export const CLIENT_ERROR_TEXT = {
 } as const;
 
 export function classifyGygError(err: unknown): { kind: string; hint?: string } | undefined {
+  // A CDN/WAF refusal page never reached GetYourGuide, so it says nothing about
+  // the key — and its message names "(HTTP 403)", which the rejection rule
+  // below would misread. Defer to the shared ladder, which reports edge_blocked.
+  if (err instanceof EdgeBlockedError) return undefined;
   // Search message AND hint: client.ts carries the actionable text on `.hint`
   // and a formatted status summary on `.message`.
   const message = err instanceof Error ? err.message : String(err);

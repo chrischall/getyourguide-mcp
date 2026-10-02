@@ -16,6 +16,7 @@
 import {
   ApiError,
   createApiClient,
+  EdgeBlockedError,
   formatApiError,
   loadDotenvSafely,
   McpToolError,
@@ -188,6 +189,9 @@ export class GYGClient {
       // 401/429 already arrive as actionable McpToolErrors from the factories
       // above; requireKey's deferred-config error does too. Pass them through.
       if (err instanceof McpToolError) throw err;
+      // A CDN/WAF refusal page (mcp-utils 2.9) is not GetYourGuide's answer:
+      // pass it through rather than dressing its 403 in the bad-key hint.
+      if (err instanceof EdgeBlockedError) throw err;
       // Every other non-2xx surfaces as a status-carrying ApiError whose message
       // is the redacted `formatApiError` string. Re-wrap it with the matching
       // hint: 403 shares the auth hint, a persisting 503 the rate-limit hint.
