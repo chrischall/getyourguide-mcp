@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.1.3](https://github.com/chrischall/getyourguide-mcp/compare/v2.1.2...v2.1.3) (2026-10-03)
+
+
+### Bug Fixes
+
+* **deps:** bump @chrischall/mcp-utils to 2.12.0 ([#112](https://github.com/chrischall/getyourguide-mcp/issues/112)) ([d678b8c](https://github.com/chrischall/getyourguide-mcp/commit/d678b8c306e6a93191e9e9f4253fe913d5ddcf8b))
+* **deps:** bump @chrischall/mcp-utils to 2.13.0 ([#115](https://github.com/chrischall/getyourguide-mcp/issues/115)) ([829a969](https://github.com/chrischall/getyourguide-mcp/commit/829a969451f1a87f2020dfb479bee4c0ff257633))
+* **deps:** bump the production-dependencies group with 2 updates ([#108](https://github.com/chrischall/getyourguide-mcp/issues/108)) ([0c6261c](https://github.com/chrischall/getyourguide-mcp/commit/0c6261c6aa9da57848fb1fd815c0e1d5b0fa57c2))
+* keep credentials and report edge_blocked on CDN/WAF blocks (mcp-utils 2.10.0) ([#111](https://github.com/chrischall/getyourguide-mcp/issues/111)) ([4300e19](https://github.com/chrischall/getyourguide-mcp/commit/4300e19061ed725f9e64f3fb5a403778720109f6))
+* report CDN/WAF blocks as edge_blocked, not a rejected credential (mcp-utils 2.9.0) ([#110](https://github.com/chrischall/getyourguide-mcp/issues/110)) ([b31a012](https://github.com/chrischall/getyourguide-mcp/commit/b31a012ca89744d336299e60ab9ad45d191098c3))
+
+
+### Documentation
+
+* replace restated PR policy with the fleet-policy pointer ([#114](https://github.com/chrischall/getyourguide-mcp/issues/114)) ([296ed6a](https://github.com/chrischall/getyourguide-mcp/commit/296ed6a2e62840deb64ed2f9e628773a086a68e6))
+
 ## [2.1.2](https://github.com/chrischall/getyourguide-mcp/compare/v2.1.1...v2.1.2) (2026-09-24)
 
 
