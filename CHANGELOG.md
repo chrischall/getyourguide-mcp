@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.4](https://github.com/chrischall/getyourguide-mcp/compare/v2.1.3...v2.1.4) (2026-10-05)
+
+
+### Bug Fixes
+
+* **deps:** bump dotenv from 18.0.3 to 18.0.5 in the production-dependencies group ([#119](https://github.com/chrischall/getyourguide-mcp/issues/119)) ([d46087f](https://github.com/chrischall/getyourguide-mcp/commit/d46087fd27cf6394b7178dc23065d25c5159a86e))
+* **deps:** require @chrischall/mcp-utils 2.14.0 and MCP SDK 2.3.0 ([#121](https://github.com/chrischall/getyourguide-mcp/issues/121)) ([a3c8079](https://github.com/chrischall/getyourguide-mcp/commit/a3c80794a4d1b611fe519c422525710dbb2613c9))
+
 ## [2.1.3](https://github.com/chrischall/getyourguide-mcp/compare/v2.1.2...v2.1.3) (2026-10-03)
 
 
