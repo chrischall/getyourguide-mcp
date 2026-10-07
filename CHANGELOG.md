@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.1.5](https://github.com/chrischall/getyourguide-mcp/compare/v2.1.4...v2.1.5) (2026-10-07)
+
+
+### Bug Fixes
+
+* **deps:** bump source-map-js from 1.2.1 to 1.2.2 in the security group across 1 directory ([#124](https://github.com/chrischall/getyourguide-mcp/issues/124)) ([bab949a](https://github.com/chrischall/getyourguide-mcp/commit/bab949a2b4450e254930791c559204e35f903bda))
+* **deps:** let MCP_CONFIRM_ELICITATION=off skip confirm prompts on clients that never show them (mcp-utils 2.15.0) ([#122](https://github.com/chrischall/getyourguide-mcp/issues/122)) ([f895217](https://github.com/chrischall/getyourguide-mcp/commit/f8952175c19dccdd81442cff398677086acbcb58))
+
 ## [2.1.4](https://github.com/chrischall/getyourguide-mcp/compare/v2.1.3...v2.1.4) (2026-10-05)
 
 
