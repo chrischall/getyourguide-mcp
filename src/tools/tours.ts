@@ -11,9 +11,9 @@ import {
   dateRangeArgs,
   dateRangeParam,
   extraParamsArg,
-  jsonResponse,
   languageArg,
   paginationArgs,
+  READ_ANNOTATIONS,
   ToursEnvelope,
 } from './_shared.js';
 
@@ -30,7 +30,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
       description:
         'Search GetYourGuide tours and activities. Filter by free text (or "iata:<code>" for airports), location ID, ' +
         'category ID, and date range; sort by popularity, price, or rating. Returns slim summaries by default; pass view:"full" for the whole records.',
-      annotations: { readOnlyHint: true },
+      annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         q: z
           .string()
@@ -60,7 +60,11 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
       }),
     },
     async (args) => {
+      // extraParams spreads FIRST so the typed, zod-bounded args win on any
+      // colliding key (a typed arg left undefined still clears the collision,
+      // and the client then injects its currency/cnt_language defaults).
       const raw = await client.get('/tours', {
+        ...args.extraParams,
         q: args.q,
         location: args.locationId,
         'categories[]': args.categoryId,
@@ -71,7 +75,6 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
         cnt_language: args.language,
         limit: args.limit,
         offset: args.offset,
-        ...args.extraParams,
       });
       const validated = parseGYG(ToursEnvelope, raw, 'GET /tours');
       return viewResponse(args.view, validated, { tours: true });
@@ -84,7 +87,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
       description:
         'Get the full GetYourGuide record for one tour/activity by its numeric ID. Image URLs are stripped by ' +
         'default; pass view:"full" to keep them.',
-      annotations: { readOnlyHint: true },
+      annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         tourId: tourIdArg,
         currency: currencyArg,
@@ -114,25 +117,26 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
     {
       description:
         'List the bookable options of a tour (ticket types, times, languages offered), optionally within a date range.',
-      annotations: { readOnlyHint: true },
+      annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         tourId: tourIdArg,
         ...dateRangeArgs,
         currency: currencyArg,
         language: languageArg,
         limit: paginationArgs.limit,
+        view: viewArg(),
         extraParams: extraParamsArg,
       }),
     },
     async (args) => {
       const raw = await client.get(`/tours/${args.tourId}/options`, {
+        ...args.extraParams,
         'date[]': dateRangeParam(args.dateFrom, args.dateTo),
         currency: args.currency,
         cnt_language: args.language,
         limit: args.limit,
-        ...args.extraParams,
       });
-      return jsonResponse(raw);
+      return viewResponse(args.view, raw);
     },
   );
 
@@ -142,10 +146,11 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
       description:
         'Get booking availability for a tour: bookable participant categories, addons, and the list of available ' +
         'dates (with participant ranges). Lighter than gyg_get_tour_options when you only need "when can I go".',
-      annotations: { readOnlyHint: true },
+      annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         tourId: tourIdArg,
         language: languageArg,
+        view: viewArg(),
       }),
     },
     async (args) => {
@@ -156,10 +161,11 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
       // language is resolved here.
       const raw = await client.get(
         `/tours/${args.tourId}/availability`,
-        { 'cnt-language': args.language ?? resolveLanguage() },
+        // `||`, not `??`: an empty-string language means "unset" here too.
+        { 'cnt-language': args.language || resolveLanguage() },
         { defaults: false },
       );
-      return jsonResponse(raw);
+      return viewResponse(args.view, raw);
     },
   );
 
@@ -168,13 +174,14 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
     {
       description:
         'List customer reviews for a tour (rating outline plus individual review items).',
-      annotations: { readOnlyHint: true },
+      annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         tourId: tourIdArg,
         currency: currencyArg,
         language: languageArg,
         sortField: z.enum(['rating', 'date']).optional().describe('Sort field for reviews.'),
         sortDirection: z.enum(['asc', 'desc']).optional().describe('Sort direction.'),
+        view: viewArg(),
         limit: paginationArgs.limit,
         offset: z
           .number()
@@ -197,7 +204,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
         limit: args.limit,
         offset: args.offset,
       });
-      return jsonResponse(raw);
+      return viewResponse(args.view, raw);
     },
   );
 }

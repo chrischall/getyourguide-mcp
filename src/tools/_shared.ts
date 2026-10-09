@@ -1,15 +1,20 @@
-// Helpers shared by the tool registrars: the JSON tool-result wrapper, the
-// zod arg atoms every listing tool repeats (currency / language / pagination),
+// Helpers shared by the tool registrars: the tool annotations, the zod arg
+// atoms every listing tool repeats (currency / language / pagination),
 // the date[] range builder, and the opt-in compact projection for verbose
 // tour listings.
-import { McpToolError, textResult } from '@chrischall/mcp-utils';
+import { McpToolError } from '@chrischall/mcp-utils';
 import { z } from 'zod';
 
 /**
- * Pretty-printed JSON tool result. Thin wrapper over @chrischall/mcp-utils'
- * `textResult` so the rest of the codebase keeps the local name.
+ * Annotations for every tool this server registers: each is a read-only GET
+ * against GetYourGuide's external API, so it is idempotent and open-world —
+ * matching the shared gyg_healthcheck, which mcp-utils marks openWorldHint.
  */
-export const jsonResponse = textResult;
+export const READ_ANNOTATIONS = {
+  readOnlyHint: true,
+  idempotentHint: true,
+  openWorldHint: true,
+} as const;
 
 /** Per-call currency override (falls back to the GYG_CURRENCY env default). */
 export const currencyArg = z
@@ -61,15 +66,17 @@ export function dateRangeParam(dateFrom?: string, dateTo?: string): string[] | u
 }
 
 /**
- * Escape hatch for API drift: extra query params merged verbatim into the
- * request, so a renamed/undocumented Partner API param is usable without a
- * code change (the response shapes here were not live-verifiable at build
- * time — see docs/GETYOURGUIDE-API.md).
+ * Escape hatch for API drift: extra query params merged into the request, so
+ * a renamed/undocumented Partner API param is usable without a code change.
+ * (The response shapes here were not live-verifiable at build time — see
+ * docs/GETYOURGUIDE-API.md.) Keys that collide with a tool's typed args are
+ * ignored: the typed, zod-bounded args — and the client's currency /
+ * cnt_language defaults — always win.
  */
 export const extraParamsArg = z
   .record(z.string(), z.string())
   .optional()
-  .describe('Extra raw query params to merge into the request verbatim (escape hatch for API drift).');
+  .describe('Extra raw query params to merge into the request (escape hatch for API drift). Keys that duplicate this tool\'s own arguments are ignored.');
 
 /**
  * Fields kept by the compact tour projection — documented summary fields

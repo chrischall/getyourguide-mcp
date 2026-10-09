@@ -49,13 +49,12 @@ Get an API key by joining the free partner program at
 
 ## Response shape
 
-`gyg_search_tours`, `gyg_get_tour`, `gyg_list_category_tours` and
-`gyg_list_location_tours` take `view: "compact" | "full"`, and **`compact` is
-the default** — you get the slim projection without asking for it. Pass
-`view: "full"` for the whole GetYourGuide record.
-
-The other tools take no `view`: their responses are already narrow, and a rung
-that cannot change anything is worse than no parameter.
+Every data tool takes `view: "compact" | "full"`, and **`compact` is the
+default** — you get the slim response without asking for it. On the tour
+listings (`gyg_search_tours`, `gyg_list_category_tours`,
+`gyg_list_location_tours`) compact is a slim projection; everywhere else it
+strips image URLs and keeps every other field. Pass `view: "full"` for the
+whole GetYourGuide record.
 
 (This replaced an opt-in `compact: true` flag. Passing `compact` now does
 nothing — zod drops the unknown key and you get the compact rung regardless,

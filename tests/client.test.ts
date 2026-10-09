@@ -8,6 +8,7 @@ import {
   resolveLanguage,
 } from '../src/client.js';
 import { VERSION } from '../src/version.js';
+import { McpToolError } from '@chrischall/mcp-utils';
 
 const ENV_KEYS = ['GYG_API_KEY', 'GYG_BASE_URL', 'GYG_CURRENCY', 'GYG_LANGUAGE', 'GYG_REQUEST_TIMEOUT_MS'] as const;
 let savedEnv: Record<string, string | undefined>;
@@ -164,6 +165,18 @@ describe('GYGClient.get', () => {
     expect(url).not.toContain('USD');
   });
 
+  // An LLM filling an optional arg with "" must get the default, not a request
+  // missing a required param (buildQueryString drops empty strings).
+  it('treats an empty-string per-call currency/language as absent', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    process.env.GYG_CURRENCY = 'EUR';
+    const { client, fetchFn } = makeClient([jsonResponse({})]);
+    await client.get('/tours', { currency: '', cnt_language: '' });
+    const [url] = fetchFn.mock.calls[0];
+    expect(url).toContain('currency=EUR');
+    expect(url).toContain('cnt_language=en');
+  });
+
   it('retries once on 429 honoring Retry-After, then succeeds', async () => {
     process.env.GYG_API_KEY = 'test-key';
     const { client, fetchFn, sleeps } = makeClient([
@@ -207,12 +220,56 @@ describe('GYGClient.get', () => {
     });
   });
 
-  it('propagates a network/transport error unchanged', async () => {
+  it('wraps a network/transport failure in an actionable error naming the path', async () => {
     process.env.GYG_API_KEY = 'test-key';
-    const boom = new TypeError('network down');
+    const boom = new TypeError('fetch failed');
     const fetchFn = vi.fn().mockRejectedValue(boom);
     const client = new GYGClient({ fetchFn: fetchFn as unknown as typeof fetch });
-    await expect(client.get('/tours')).rejects.toBe(boom);
+    const err = await client.get('/tours').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(McpToolError);
+    expect(err).toMatchObject({
+      message: 'GetYourGuide request failed for GET /tours: fetch failed',
+      hint: expect.stringContaining('GYG_BASE_URL'),
+      cause: boom,
+    });
+  });
+
+  it('wraps a request timeout with a hint naming GYG_REQUEST_TIMEOUT_MS', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    process.env.GYG_REQUEST_TIMEOUT_MS = '5';
+    // A fetch that never settles until its abort signal fires.
+    const fetchFn = vi.fn(
+      (_input: unknown, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(Object.assign(new Error('This operation was aborted'), { name: 'AbortError' })),
+          );
+        }),
+    );
+    const client = new GYGClient({ fetchFn: fetchFn as unknown as typeof fetch });
+    await expect(client.get('/categories')).rejects.toMatchObject({
+      message: expect.stringMatching(/^GetYourGuide request failed for GET \/categories: .*timed out/),
+      hint: expect.stringContaining('GYG_REQUEST_TIMEOUT_MS'),
+    });
+  });
+
+  it('wraps a non-Error throwable too', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    const fetchFn = vi.fn().mockRejectedValue('socket closed');
+    const client = new GYGClient({ fetchFn: fetchFn as unknown as typeof fetch });
+    await expect(client.get('/tours')).rejects.toMatchObject({
+      message: 'GetYourGuide request failed for GET /tours: socket closed',
+    });
+  });
+
+  // A caller cancellation is not a GetYourGuide failure: leave it untouched so
+  // the MCP runtime still recognises it as an abort.
+  it('lets a caller AbortError through unchanged', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    const abort = Object.assign(new Error('This operation was aborted'), { name: 'AbortError' });
+    const fetchFn = vi.fn().mockRejectedValue(abort);
+    const client = new GYGClient({ fetchFn: fetchFn as unknown as typeof fetch });
+    await expect(client.get('/tours')).rejects.toBe(abort);
   });
 
   it('throws an actionable auth error on 401', async () => {
@@ -238,6 +295,23 @@ describe('GYGClient.get', () => {
     await expect(client.get('/tours/1')).rejects.toMatchObject({
       message: expect.stringContaining('GetYourGuide error 500 for GET /tours/1'),
     });
+  });
+
+  // The healthcheck classifies on this structured status, never on digits in
+  // the (upstream-controlled) message text.
+  it('attaches the HTTP status to every status-carrying error', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    const cases: Array<[Response[], number]> = [
+      [[jsonResponse({}, 401)], 401],
+      [[jsonResponse({}, 403)], 403],
+      [[jsonResponse({}, 429, { 'retry-after': '0' }), jsonResponse({}, 429)], 429],
+      [[jsonResponse({}, 503), jsonResponse({}, 503)], 503],
+      [[jsonResponse({ error: 'id 401' }, 500)], 500],
+    ];
+    for (const [responses, status] of cases) {
+      const { client } = makeClient(responses);
+      await expect(client.get('/categories')).rejects.toMatchObject({ status });
+    }
   });
 
   it('throws an actionable error on a non-JSON 2xx body', async () => {

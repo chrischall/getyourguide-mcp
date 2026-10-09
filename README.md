@@ -18,18 +18,18 @@ All tools are read-only — this server registers no write tools.
 | --- | --- |
 | `gyg_search_tours` | Search tours/activities by free text, location, category, or date range; sortable; `view` |
 | `gyg_get_tour` | Full record for one tour by numeric ID; `view` |
-| `gyg_get_tour_options` | Bookable options of a tour (ticket types, times), optionally within a date range |
-| `gyg_get_tour_availability` | Booking availability of a tour: participant categories, addons, available dates |
-| `gyg_get_tour_reviews` | Customer reviews for a tour |
-| `gyg_list_categories` | Activity categories (IDs feed `gyg_search_tours` / `gyg_list_category_tours`) |
+| `gyg_get_tour_options` | Bookable options of a tour (ticket types, times), optionally within a date range; `view` |
+| `gyg_get_tour_availability` | Booking availability of a tour: participant categories, addons, available dates; `view` |
+| `gyg_get_tour_reviews` | Customer reviews for a tour; `view` |
+| `gyg_list_categories` | Activity categories (IDs feed `gyg_search_tours` / `gyg_list_category_tours`); `view` |
 | `gyg_list_category_tours` | Tours in one category; `view` |
-| `gyg_get_location` | Details for a location (city, POI, region) by ID |
+| `gyg_get_location` | Details for a location (city, POI, region) by ID; `view` |
 | `gyg_list_location_tours` | Tours available at one location; `view` |
 | `gyg_healthcheck` | Verify credentials and upstream reachability; reports failures as data, not exceptions |
 
 ### `view` — response shape
 
-The tools marked `view` above take `view: "compact" | "full"`, and **`compact` is
+Every data tool takes `view: "compact" | "full"`, and **`compact` is
 the default**. An efficiency that has to be asked for is one that usually is not,
 so it is not opt-in — the old `compact: true` flag on `gyg_search_tours` is gone.
 
@@ -37,7 +37,8 @@ so it is not opt-in — the old `compact: true` flag on `gyg_search_tours` is go
   projection (`tour_id`, `title`, `abstract`, `url`, `price`, `overall_rating`,
   `number_of_ratings`, `durations`, `categories`, `locations`), flattened to
   `{ _metadata, tours }`. On `gyg_get_tour` — one record, no listing envelope to
-  project — it instead strips image URLs and keeps everything else.
+  project — and on every other tool (options, availability, reviews,
+  categories, location) — it instead strips image URLs and keeps everything else.
 - **`full`** — GetYourGuide's whole validated record, untouched.
 
 Reach for `full` when you need a field the projection does not carry (picture
@@ -93,7 +94,7 @@ see `.env.example`).
 - **API drift:** responses are validated leniently. On an unexpected shape the
   server logs a precise warning to stderr and returns the raw response rather
   than breaking; search tools also accept `extraParams` to pass raw query
-  params through verbatim. See `docs/GETYOURGUIDE-API.md` — routes and
+  params through (they never override a tool's own arguments). See `docs/GETYOURGUIDE-API.md` — routes and
   request shapes are live-verified against the API and its official OpenAPI
   spec; real 200 bodies still need pinning from a keyed capture.
 - **Secrets:** upstream error bodies are redacted then truncated before they

@@ -21,6 +21,7 @@ import {
   loadDotenvSafely,
   McpToolError,
   readEnvVar,
+  RequestTimeoutError,
 } from '@chrischall/mcp-utils';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -84,6 +85,29 @@ const RATE_LIMIT_HINT = 'Rate limited even after one retry — wait a minute bef
 const NON_JSON_HINT =
   'This usually means a proxy or interstitial page answered instead of the API. ' +
   'Check GYG_BASE_URL and your network, then retry.';
+
+/**
+ * An {@link McpToolError} that carries the upstream HTTP status. The
+ * healthcheck classifier (and mcp-utils' shared ladder) read `status`, never
+ * status-like digits in the message — that message embeds the upstream body,
+ * which can quote any number.
+ */
+export class GYGHttpError extends McpToolError {
+  readonly status: number;
+  constructor(message: string, status: number, hint?: string) {
+    super(message, { hint });
+    this.status = status;
+  }
+}
+
+/** Hint shown when a request exceeds GYG_REQUEST_TIMEOUT_MS. */
+const TIMEOUT_HINT =
+  'GetYourGuide did not answer in time. Retry; if it keeps happening, raise GYG_REQUEST_TIMEOUT_MS ' +
+  '(default 30000 ms) or check GYG_BASE_URL and your network.';
+/** Hint shown when the request never got an HTTP answer (DNS, refused, reset). */
+const NETWORK_HINT =
+  'The request never reached GetYourGuide. Check your network connection and GYG_BASE_URL ' +
+  '(default https://api.getyourguide.com/1), then retry.';
 
 /** Test seams: both default to the real global implementations. */
 export interface GYGClientOptions {
@@ -149,9 +173,9 @@ export class GYGClient {
         maxRetryAfterMs: RETRY_AFTER_CAP_MS,
       },
       onUnauthorized: () =>
-        new McpToolError(formatApiError(401, 'GET', path, '', { service: 'GetYourGuide' }), { hint: AUTH_HINT }),
+        new GYGHttpError(formatApiError(401, 'GET', path, '', { service: 'GetYourGuide' }), 401, AUTH_HINT),
       onRateLimited: () =>
-        new McpToolError(formatApiError(429, 'GET', path, '', { service: 'GetYourGuide' }), { hint: RATE_LIMIT_HINT }),
+        new GYGHttpError(formatApiError(429, 'GET', path, '', { service: 'GetYourGuide' }), 429, RATE_LIMIT_HINT),
       fetchImpl: this.fetchFn,
       sleep: this.sleepFn,
     });
@@ -159,7 +183,8 @@ export class GYGClient {
 
   /**
    * GET a Partner API path (e.g. `/tours`) with query params. `undefined`
-   * param values are dropped; explicit per-call values win over the
+   * and empty-string param values are dropped (so `currency: ''` from a tool
+   * call falls back to the default instead of erasing a required param); explicit per-call values win over the
    * GYG_CURRENCY / GYG_LANGUAGE env defaults, which in turn win over the
    * USD / en fallbacks (the API rejects requests missing either).
    *
@@ -180,7 +205,7 @@ export class GYGClient {
             cnt_language: resolveLanguage(),
           };
     for (const [name, value] of Object.entries(params)) {
-      if (value !== undefined) merged[name] = value;
+      if (value !== undefined && value !== '') merged[name] = value;
     }
 
     try {
@@ -196,16 +221,26 @@ export class GYGClient {
       // is the redacted `formatApiError` string. Re-wrap it with the matching
       // hint: 403 shares the auth hint, a persisting 503 the rate-limit hint.
       if (err instanceof ApiError) {
-        if (err.status === 403) throw new McpToolError(err.message, { hint: AUTH_HINT });
-        if (err.status === 503) throw new McpToolError(err.message, { hint: RATE_LIMIT_HINT });
-        throw new McpToolError(err.message);
+        if (err.status === 403) throw new GYGHttpError(err.message, 403, AUTH_HINT);
+        if (err.status === 503) throw new GYGHttpError(err.message, 503, RATE_LIMIT_HINT);
+        throw new GYGHttpError(err.message, err.status);
       }
       // A 2xx body that isn't JSON throws a SyntaxError out of fetchJson's parse.
       if (err instanceof SyntaxError) {
         throw new McpToolError(`GetYourGuide returned a non-JSON response for GET ${path}.`, { hint: NON_JSON_HINT });
       }
-      // Timeouts / network failures propagate unchanged (as they did before).
-      throw err;
+      // A caller cancellation is not a GetYourGuide failure — leave it as the
+      // AbortError the MCP runtime recognises.
+      if (err instanceof Error && err.name === 'AbortError') throw err;
+      // Timeouts and network failures (DNS, refused, reset) get the same
+      // path-naming, actionable shape as every HTTP failure. The original text
+      // stays in the message ("timed out", "fetch failed") so the shared
+      // healthcheck ladder still tells timeout from transport.
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new McpToolError(`GetYourGuide request failed for GET ${path}: ${detail}`, {
+        hint: err instanceof RequestTimeoutError ? TIMEOUT_HINT : NETWORK_HINT,
+        cause: err,
+      });
     }
   }
 }
