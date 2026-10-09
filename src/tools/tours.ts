@@ -11,7 +11,6 @@ import {
   dateRangeArgs,
   dateRangeParam,
   extraParamsArg,
-  jsonResponse,
   languageArg,
   paginationArgs,
   READ_ANNOTATIONS,
@@ -125,6 +124,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
         currency: currencyArg,
         language: languageArg,
         limit: paginationArgs.limit,
+        view: viewArg(),
         extraParams: extraParamsArg,
       }),
     },
@@ -136,7 +136,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
         cnt_language: args.language,
         limit: args.limit,
       });
-      return jsonResponse(raw);
+      return viewResponse(args.view, raw);
     },
   );
 
@@ -150,6 +150,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
       inputSchema: z.object({
         tourId: tourIdArg,
         language: languageArg,
+        view: viewArg(),
       }),
     },
     async (args) => {
@@ -164,7 +165,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
         { 'cnt-language': args.language || resolveLanguage() },
         { defaults: false },
       );
-      return jsonResponse(raw);
+      return viewResponse(args.view, raw);
     },
   );
 
@@ -180,6 +181,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
         language: languageArg,
         sortField: z.enum(['rating', 'date']).optional().describe('Sort field for reviews.'),
         sortDirection: z.enum(['asc', 'desc']).optional().describe('Sort direction.'),
+        view: viewArg(),
         limit: paginationArgs.limit,
         offset: z
           .number()
@@ -202,7 +204,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
         limit: args.limit,
         offset: args.offset,
       });
-      return jsonResponse(raw);
+      return viewResponse(args.view, raw);
     },
   );
 }

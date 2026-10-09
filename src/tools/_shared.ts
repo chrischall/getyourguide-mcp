@@ -1,15 +1,9 @@
-// Helpers shared by the tool registrars: the JSON tool-result wrapper, the
-// zod arg atoms every listing tool repeats (currency / language / pagination),
+// Helpers shared by the tool registrars: the tool annotations, the zod arg
+// atoms every listing tool repeats (currency / language / pagination),
 // the date[] range builder, and the opt-in compact projection for verbose
 // tour listings.
-import { McpToolError, textResult } from '@chrischall/mcp-utils';
+import { McpToolError } from '@chrischall/mcp-utils';
 import { z } from 'zod';
-
-/**
- * Pretty-printed JSON tool result. Thin wrapper over @chrischall/mcp-utils'
- * `textResult` so the rest of the codebase keeps the local name.
- */
-export const jsonResponse = textResult;
 
 /**
  * Annotations for every tool this server registers: each is a read-only GET

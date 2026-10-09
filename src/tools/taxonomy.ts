@@ -14,7 +14,6 @@ import type { GYGClient } from '../client.js';
 import { parseGYG } from '../validate.js';
 import {
   currencyArg,
-  jsonResponse,
   languageArg,
   paginationArgs,
   READ_ANNOTATIONS,
@@ -29,6 +28,7 @@ export function registerTaxonomyTools(server: McpServer, client: GYGClient): voi
       annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         language: languageArg,
+        view: viewArg(),
         ...paginationArgs,
       }),
     },
@@ -38,7 +38,7 @@ export function registerTaxonomyTools(server: McpServer, client: GYGClient): voi
         limit: args.limit,
         offset: args.offset,
       });
-      return jsonResponse(raw);
+      return viewResponse(args.view, raw);
     },
   );
 
@@ -84,13 +84,14 @@ export function registerTaxonomyTools(server: McpServer, client: GYGClient): voi
       inputSchema: z.object({
         locationId: z.number().int().positive().describe('Numeric location ID.'),
         language: languageArg,
+        view: viewArg(),
       }),
     },
     async (args) => {
       const raw = await client.get(`/locations/${args.locationId}`, {
         cnt_language: args.language,
       });
-      return jsonResponse(raw);
+      return viewResponse(args.view, raw);
     },
   );
 

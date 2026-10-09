@@ -27,7 +27,7 @@ src/
                     #   (its non-Bearer token mode); deferred GYG_API_KEY config error; one 429/503
                     #   retry honoring a capped Retry-After; failures re-mapped to McpToolError + hint
   validate.ts       # parseGYG — thin wrapper over mcp-utils parseLenient: warn to stderr + return RAW on mismatch
-  tools/_shared.ts  # jsonResponse, currency/language/pagination atoms, compact tour projection
+  tools/_shared.ts  # READ_ANNOTATIONS, currency/language/pagination atoms, compact tour projection
   tools/tours.ts    # gyg_search_tours / gyg_get_tour / gyg_get_tour_options / gyg_get_tour_availability / gyg_get_tour_reviews
   tools/taxonomy.ts # gyg_list_categories / gyg_list_category_tours / gyg_get_location / gyg_list_location_tours
 tests/              # vitest; NO network — client tests inject fetchFn/sleepFn, tool tests spy client.get

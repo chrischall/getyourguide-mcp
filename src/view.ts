@@ -36,10 +36,11 @@ export const viewArg = (): ReturnType<typeof viewParam> => viewParam(GYG_VIEWS, 
  * `compactTours` was written against.
  *
  * Without it compact still strips media, which is the part that needs no
- * knowledge of the shape. That arm is not a hypothetical: `gyg_get_tour`
- * answers ONE record — no `data.tours` array for the projection to read, and
- * the picture size variants `COMPACT_TOUR_KEYS` calls fat still in it — so it
- * takes this path. A rung with no call site is dead code dressed as a feature.
+ * knowledge of the shape. Every non-listing tool takes this path:
+ * `gyg_get_tour` answers ONE record — no `data.tours` array for the projection
+ * to read, and the picture size variants `COMPACT_TOUR_KEYS` calls fat still
+ * in it — and options, availability, reviews, categories and location answer
+ * shapes with no verified field list but plenty of image/avatar URLs.
  *
  * `compactTours` already returns the payload untouched (with a stderr warning)
  * when `data.tours` is not where it expects, so drift on the projected path
