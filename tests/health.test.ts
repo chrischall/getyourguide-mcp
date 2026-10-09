@@ -96,20 +96,50 @@ describe('gyg_healthcheck', () => {
     expect(out.error.kind).toBe('rate_limited');
   });
 
-  // The status-code fallbacks exist for the case client.ts does NOT attach a
-  // known hint — a raw upstream error, or a reworded one. Without a hint that
-  // matches, only the status makes these decisive, which is exactly what the
-  // review on #64 found untested.
-  it('falls back to the status code when no known hint is attached', async () => {
+  // The status fallbacks exist for the case client.ts does NOT attach a known
+  // hint — a reworded one, say. They read the STRUCTURED status client.ts
+  // attaches, never digits in the message.
+  it('falls back to the structured status when no known hint is attached', async () => {
     const rejected = await setup(FULL, async () => {
-      throw new Error('GetYourGuide GET /categories failed with 401');
+      throw Object.assign(new McpToolError('GetYourGuide GET /categories failed'), { status: 401 });
     }).call();
     expect(rejected.error.kind).toBe('credential_rejected');
 
+    const forbidden = await setup(FULL, async () => {
+      throw Object.assign(new McpToolError('GetYourGuide GET /categories failed'), { status: 403 });
+    }).call();
+    expect(forbidden.error.kind).toBe('credential_rejected');
+
     const limited = await setup(FULL, async () => {
-      throw new Error('GetYourGuide GET /categories failed with 429');
+      throw Object.assign(new McpToolError('GetYourGuide GET /categories failed'), { status: 429 });
     }).call();
     expect(limited.error.kind).toBe('rate_limited');
+
+    const overloaded = await setup(FULL, async () => {
+      throw Object.assign(new McpToolError('GetYourGuide GET /categories failed'), { status: 503 });
+    }).call();
+    expect(overloaded.error.kind).toBe('rate_limited');
+  });
+
+  // A 500/404 whose (redacted, truncated) upstream body quotes "401" or "503"
+  // — an id, an HTML error page — must not be read as a key or rate problem.
+  it('never classifies on status-like digits in the upstream body', async () => {
+    for (const status of [500, 404]) {
+      for (const body of ['ticket 401 failed', 'error 503 page', 'HTTP 429 upstream', 'code 403']) {
+        const out = await setup(FULL, async () => {
+          throw Object.assign(
+            new McpToolError(`GetYourGuide error ${status} for GET /categories: ${body}`),
+            { status },
+          );
+        }).call();
+        expect(out.error.kind).not.toBe('credential_rejected');
+        expect(out.error.kind).not.toBe('rate_limited');
+      }
+    }
+    const bare = await setup(FULL, async () => {
+      throw new Error('GetYourGuide GET /categories failed with 401');
+    }).call();
+    expect(bare.error.kind).not.toBe('credential_rejected');
   });
 
   it('does not mistake an unrelated number for a status code', async () => {

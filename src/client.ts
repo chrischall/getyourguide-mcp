@@ -85,6 +85,20 @@ const NON_JSON_HINT =
   'This usually means a proxy or interstitial page answered instead of the API. ' +
   'Check GYG_BASE_URL and your network, then retry.';
 
+/**
+ * An {@link McpToolError} that carries the upstream HTTP status. The
+ * healthcheck classifier (and mcp-utils' shared ladder) read `status`, never
+ * status-like digits in the message — that message embeds the upstream body,
+ * which can quote any number.
+ */
+export class GYGHttpError extends McpToolError {
+  readonly status: number;
+  constructor(message: string, status: number, hint?: string) {
+    super(message, { hint });
+    this.status = status;
+  }
+}
+
 /** Test seams: both default to the real global implementations. */
 export interface GYGClientOptions {
   fetchFn?: typeof fetch;
@@ -149,9 +163,9 @@ export class GYGClient {
         maxRetryAfterMs: RETRY_AFTER_CAP_MS,
       },
       onUnauthorized: () =>
-        new McpToolError(formatApiError(401, 'GET', path, '', { service: 'GetYourGuide' }), { hint: AUTH_HINT }),
+        new GYGHttpError(formatApiError(401, 'GET', path, '', { service: 'GetYourGuide' }), 401, AUTH_HINT),
       onRateLimited: () =>
-        new McpToolError(formatApiError(429, 'GET', path, '', { service: 'GetYourGuide' }), { hint: RATE_LIMIT_HINT }),
+        new GYGHttpError(formatApiError(429, 'GET', path, '', { service: 'GetYourGuide' }), 429, RATE_LIMIT_HINT),
       fetchImpl: this.fetchFn,
       sleep: this.sleepFn,
     });
@@ -197,9 +211,9 @@ export class GYGClient {
       // is the redacted `formatApiError` string. Re-wrap it with the matching
       // hint: 403 shares the auth hint, a persisting 503 the rate-limit hint.
       if (err instanceof ApiError) {
-        if (err.status === 403) throw new McpToolError(err.message, { hint: AUTH_HINT });
-        if (err.status === 503) throw new McpToolError(err.message, { hint: RATE_LIMIT_HINT });
-        throw new McpToolError(err.message);
+        if (err.status === 403) throw new GYGHttpError(err.message, 403, AUTH_HINT);
+        if (err.status === 503) throw new GYGHttpError(err.message, 503, RATE_LIMIT_HINT);
+        throw new GYGHttpError(err.message, err.status);
       }
       // A 2xx body that isn't JSON throws a SyntaxError out of fetchJson's parse.
       if (err instanceof SyntaxError) {

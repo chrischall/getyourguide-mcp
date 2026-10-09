@@ -47,18 +47,23 @@ export function classifyGygError(err: unknown): { kind: string; hint?: string } 
   const hint =
     typeof (err as { hint?: unknown })?.hint === 'string' ? (err as { hint: string }).hint : '';
   const text = `${message}\n${hint}`;
+  // The STRUCTURED status client.ts attaches (GYGHttpError). Never regex the
+  // message for status codes: it embeds the upstream body, and a 500 page
+  // quoting "401" or "503" would send someone to replace a working key.
+  const rawStatus = (err as { status?: unknown } | null | undefined)?.status;
+  const status = typeof rawStatus === 'number' ? rawStatus : undefined;
 
   if (text.includes(CLIENT_ERROR_TEXT.noKey)) return { kind: 'no_credential' };
 
   // Checked before the rejection arm: a 503 carries the rate-limit hint, and
   // a status-code match alone would misread it as an auth problem.
-  if (text.includes(CLIENT_ERROR_TEXT.rateLimited) || /\b429\b|\b503\b/.test(text)) {
+  if (text.includes(CLIENT_ERROR_TEXT.rateLimited) || status === 429 || status === 503) {
     return {
       kind: 'rate_limited',
       hint: 'GetYourGuide rate-limited the probe even after a retry. The key is fine — wait a minute.',
     };
   }
-  if (text.includes(CLIENT_ERROR_TEXT.rejected) || /\b401\b|\b403\b/.test(text)) {
+  if (text.includes(CLIENT_ERROR_TEXT.rejected) || status === 401 || status === 403) {
     return {
       kind: 'credential_rejected',
       hint:

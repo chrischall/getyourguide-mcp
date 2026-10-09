@@ -252,6 +252,23 @@ describe('GYGClient.get', () => {
     });
   });
 
+  // The healthcheck classifies on this structured status, never on digits in
+  // the (upstream-controlled) message text.
+  it('attaches the HTTP status to every status-carrying error', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    const cases: Array<[Response[], number]> = [
+      [[jsonResponse({}, 401)], 401],
+      [[jsonResponse({}, 403)], 403],
+      [[jsonResponse({}, 429, { 'retry-after': '0' }), jsonResponse({}, 429)], 429],
+      [[jsonResponse({}, 503), jsonResponse({}, 503)], 503],
+      [[jsonResponse({ error: 'id 401' }, 500)], 500],
+    ];
+    for (const [responses, status] of cases) {
+      const { client } = makeClient(responses);
+      await expect(client.get('/categories')).rejects.toMatchObject({ status });
+    }
+  });
+
   it('throws an actionable error on a non-JSON 2xx body', async () => {
     process.env.GYG_API_KEY = 'test-key';
     const { client } = makeClient([new Response('<html>interstitial</html>', { status: 200 })]);
