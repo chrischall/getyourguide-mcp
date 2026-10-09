@@ -54,7 +54,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
           .describe('Sort direction (ignored for popularity).'),
         currency: currencyArg,
         language: languageArg,
-        view: viewArg(),
+        view: viewArg({ tours: true }),
         ...paginationArgs,
         extraParams: extraParamsArg,
       }),
@@ -116,7 +116,8 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
     'gyg_get_tour_options',
     {
       description:
-        'List the bookable options of a tour (ticket types, times, languages offered), optionally within a date range.',
+        'List the bookable options of a tour (ticket types, times, languages offered), optionally within a date range. ' +
+        'Image URLs are stripped by default; pass view:"full" to keep them.',
       annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         tourId: tourIdArg,
@@ -145,7 +146,8 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
     {
       description:
         'Get booking availability for a tour: bookable participant categories, addons, and the list of available ' +
-        'dates (with participant ranges). Lighter than gyg_get_tour_options when you only need "when can I go".',
+        'dates (with participant ranges). Lighter than gyg_get_tour_options when you only need "when can I go". ' +
+        'Image URLs are stripped by default; pass view:"full" to keep them.',
       annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         tourId: tourIdArg,
@@ -173,7 +175,8 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
     'gyg_get_tour_reviews',
     {
       description:
-        'List customer reviews for a tour (rating outline plus individual review items).',
+        'List customer reviews for a tour (rating outline plus individual review items). Image URLs are stripped by ' +
+        'default; pass view:"full" to keep them.',
       annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         tourId: tourIdArg,
