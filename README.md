@@ -93,10 +93,14 @@ see `.env.example`).
   a key whose partner tier doesn't cover that endpoint.
 - **API drift:** responses are validated leniently. On an unexpected shape the
   server logs a precise warning to stderr and returns the raw response rather
-  than breaking; search tools also accept `extraParams` to pass raw query
-  params through (they never override a tool's own arguments). See `docs/GETYOURGUIDE-API.md` — routes and
-  request shapes are live-verified against the API and its official OpenAPI
-  spec; real 200 bodies still need pinning from a keyed capture.
+  than breaking. See `docs/GETYOURGUIDE-API.md` — routes and request shapes
+  are live-verified against the API and its official OpenAPI spec; real 200
+  bodies still need pinning from a keyed capture.
+- **`extraParams`:** `gyg_search_tours` and `gyg_get_tour_options` accept
+  `extraParams` to pass raw query params the schema doesn't model. A key that
+  collides with one of the tool's own arguments (`limit`, `offset`,
+  `currency`, `cnt_language`, `q`, …) is **ignored** — the typed argument, or
+  its default, always wins. (Before 2.1.6 `extraParams` overrode them.)
 - **Secrets:** upstream error bodies are redacted then truncated before they
   reach a tool result; the API key is never echoed.
 

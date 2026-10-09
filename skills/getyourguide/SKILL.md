@@ -67,9 +67,11 @@ which is what the flag used to ask for.)
 - Results honor `currency` / `language` args (fall back to the env defaults).
 - If a response looks structurally off, the server has already logged a
   precise drift warning to stderr and returned the raw body — report the
-  warning text upstream rather than working around it silently. Search tools
-  accept `extraParams` for raw query params if the API needs something the
-  schema doesn't expose.
+  warning text upstream rather than working around it silently.
+  `gyg_search_tours` and `gyg_get_tour_options` accept `extraParams` for raw
+  query params if the API needs something the schema doesn't expose. It can't
+  override the tool's own arguments: a colliding key (`limit`, `currency`, …)
+  is ignored, so set those through the real arguments.
 - A `401`/`403` error means the key is wrong **or** its partner tier doesn't
   cover that endpoint — check the partner dashboard before assuming the key
   is dead.
