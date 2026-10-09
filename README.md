@@ -89,14 +89,26 @@ see `.env.example`).
 
 - **Rate limits:** one automatic retry on `429`/`503` honoring `Retry-After`
   (capped at 10s). If it still fails, the error tells you to back off.
+- **Timeouts & network failures:** a request that exceeds
+  `GYG_REQUEST_TIMEOUT_MS`, or never reaches the API (DNS, refused, reset),
+  comes back as a tool error naming the request path, with a hint to raise
+  the timeout or check `GYG_BASE_URL` and your network. Cancelling a call is
+  not wrapped — it stays a cancellation.
+- **Empty arguments:** an empty-string query param (e.g. `currency: ""` or
+  `language: ""`) is dropped rather than sent, so the env default / `USD` /
+  `en` fallback applies instead of the API rejecting a blank value.
 - **Auth errors:** a `401`/`403` names both possible causes — a wrong key, or
   a key whose partner tier doesn't cover that endpoint.
 - **API drift:** responses are validated leniently. On an unexpected shape the
   server logs a precise warning to stderr and returns the raw response rather
-  than breaking; search tools also accept `extraParams` to pass raw query
-  params through (they never override a tool's own arguments). See `docs/GETYOURGUIDE-API.md` — routes and
-  request shapes are live-verified against the API and its official OpenAPI
-  spec; real 200 bodies still need pinning from a keyed capture.
+  than breaking. See `docs/GETYOURGUIDE-API.md` — routes and request shapes
+  are live-verified against the API and its official OpenAPI spec; real 200
+  bodies still need pinning from a keyed capture.
+- **`extraParams`:** `gyg_search_tours` and `gyg_get_tour_options` accept
+  `extraParams` to pass raw query params the schema doesn't model. A key that
+  collides with one of the tool's own arguments (`limit`, `offset`,
+  `currency`, `cnt_language`, `q`, …) is **ignored** — the typed argument, or
+  its default, always wins. (Before 2.1.6 `extraParams` overrode them.)
 - **Secrets:** upstream error bodies are redacted then truncated before they
   reach a tool result; the API key is never echoed.
 

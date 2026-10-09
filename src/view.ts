@@ -20,12 +20,22 @@ import { compactTours } from './tools/_shared.js';
  */
 export const GYG_VIEWS = ['compact', 'full'] as const;
 
-const NOTE =
+/** Note for the three tour LISTINGS, whose compact rung is the field projection. */
+const TOURS_NOTE =
   'compact returns the slim tour projection (id, title, price, duration, rating, cancellation) and strips ' +
   'image URLs; "full" returns GetYourGuide\'s whole records.';
+/** Note for every other tool, whose compact rung only strips media. */
+const MEDIA_NOTE =
+  'compact strips image URLs and keeps every other field; "full" returns GetYourGuide\'s whole record, image URLs included.';
 
-/** The `view` parameter every read tool in this server takes. */
-export const viewArg = (): ReturnType<typeof viewParam> => viewParam(GYG_VIEWS, { note: NOTE });
+/**
+ * The `view` parameter every read tool in this server takes. `tours: true`
+ * mirrors {@link viewResponse}'s flag: only the listings that get the field
+ * projection may describe one — the rest would otherwise promise a slim tour
+ * summary and answer a media-stripped payload.
+ */
+export const viewArg = (opts: { tours?: boolean } = {}): ReturnType<typeof viewParam> =>
+  viewParam(GYG_VIEWS, { note: opts.tours === true ? TOURS_NOTE : MEDIA_NOTE });
 
 /**
  * Answer in the requested rung.

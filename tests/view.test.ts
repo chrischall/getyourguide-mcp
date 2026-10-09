@@ -186,6 +186,16 @@ describe('viewArg', () => {
   // `.describe()` has to land on the OPTIONAL wrapper — applied to the inner enum
   // it comes back blank, which is a parameter documented to nobody.
   it('carries the per-tool note on the wrapper a host actually reads', () => {
-    expect(viewArg().description).toContain('slim tour projection');
+    expect(viewArg({ tours: true }).description).toContain('slim tour projection');
+  });
+
+  // Mirrors viewResponse's `tours` flag: only the three listings project, so
+  // only their note may promise a projection. Every other tool's compact rung
+  // strips image URLs and keeps the rest, and its help text has to say that.
+  it('describes the media-strip rung, not a projection, without tours: true', () => {
+    const description = viewArg().description!;
+    expect(description).not.toMatch(/projection/i);
+    expect(description).toMatch(/strips image URLs/);
+    expect(description).toMatch(/full/);
   });
 });

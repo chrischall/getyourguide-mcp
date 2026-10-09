@@ -24,7 +24,9 @@ export function registerTaxonomyTools(server: McpServer, client: GYGClient): voi
   server.registerTool(
     'gyg_list_categories',
     {
-      description: 'List GetYourGuide activity categories (use the IDs to filter tour searches).',
+      description:
+        'List GetYourGuide activity categories (use the IDs to filter tour searches). Image URLs are stripped by ' +
+        'default; pass view:"full" to keep them.',
       annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         language: languageArg,
@@ -55,7 +57,7 @@ export function registerTaxonomyTools(server: McpServer, client: GYGClient): voi
           .describe('Numeric category ID (from gyg_list_categories).'),
         currency: currencyArg,
         language: languageArg,
-        view: viewArg(),
+        view: viewArg({ tours: true }),
         ...paginationArgs,
       }),
     },
@@ -79,7 +81,8 @@ export function registerTaxonomyTools(server: McpServer, client: GYGClient): voi
     'gyg_get_location',
     {
       description:
-        'Get details for a GetYourGuide location (city, POI, or region) by its numeric ID.',
+        'Get details for a GetYourGuide location (city, POI, or region) by its numeric ID. Image URLs are stripped ' +
+        'by default; pass view:"full" to keep them.',
       annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         locationId: z.number().int().positive().describe('Numeric location ID.'),
@@ -104,7 +107,7 @@ export function registerTaxonomyTools(server: McpServer, client: GYGClient): voi
         locationId: z.number().int().positive().describe('Numeric location ID.'),
         currency: currencyArg,
         language: languageArg,
-        view: viewArg(),
+        view: viewArg({ tours: true }),
         ...paginationArgs,
       }),
     },

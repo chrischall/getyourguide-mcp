@@ -31,14 +31,16 @@ function setup() {
   const server = new McpServer({ name: 'test', version: '0.0.0' });
   const handlers = new Map<string, ToolHandler>();
   const schemas = new Map<string, { shape: Record<string, unknown> }>();
+  const descriptions = new Map<string, string>();
   vi.spyOn(server, 'registerTool').mockImplementation((name: string, config: unknown, cb: unknown) => {
     handlers.set(name, cb as ToolHandler);
+    descriptions.set(name, (config as { description: string }).description);
     schemas.set(name, (config as { inputSchema: { shape: Record<string, unknown> } }).inputSchema);
     return undefined as never;
   });
   registerTourTools(server, client);
   registerTaxonomyTools(server, client);
-  return { client, handlers, schemas };
+  return { client, handlers, schemas, descriptions };
 }
 
 afterEach(() => vi.restoreAllMocks());
@@ -54,6 +56,24 @@ const cases: Array<[string, Record<string, unknown>]> = [
 describe.each(cases)('%s view handling', (name, args) => {
   it('takes a view argument', () => {
     expect(setup().schemas.get(name)!.shape.view).toBeDefined();
+  });
+
+  // Compact-by-default changed what these tools return (image URLs gone), so
+  // the tool description itself must say so — a caller reading only the tool
+  // list should learn that view:"full" brings the media back.
+  it('says in its description that image URLs are stripped unless view:"full"', () => {
+    const description = setup().descriptions.get(name)!;
+    expect(description).toMatch(/image URLs are stripped by default/i);
+    expect(description).toContain('view:"full"');
+  });
+
+  // These tools have no tour projection — compact only strips media — so the
+  // view argument's own help text must not promise a slim tour summary.
+  it('does not describe its view argument as a tour projection', () => {
+    const view = setup().schemas.get(name)!.shape.view as { description?: string };
+    expect(view.description).toBeDefined();
+    expect(view.description).not.toMatch(/projection/i);
+    expect(view.description).toMatch(/image URLs/i);
   });
 
   it('defaults to compact: one line of JSON, media URLs stripped, other fields kept', async () => {
