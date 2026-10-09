@@ -17,6 +17,7 @@ import {
   jsonResponse,
   languageArg,
   paginationArgs,
+  READ_ANNOTATIONS,
   ToursEnvelope,
 } from './_shared.js';
 
@@ -25,7 +26,7 @@ export function registerTaxonomyTools(server: McpServer, client: GYGClient): voi
     'gyg_list_categories',
     {
       description: 'List GetYourGuide activity categories (use the IDs to filter tour searches).',
-      annotations: { readOnlyHint: true },
+      annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         language: languageArg,
         ...paginationArgs,
@@ -45,7 +46,7 @@ export function registerTaxonomyTools(server: McpServer, client: GYGClient): voi
     'gyg_list_category_tours',
     {
       description: 'List tours in one GetYourGuide category.',
-      annotations: { readOnlyHint: true },
+      annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         categoryId: z
           .number()
@@ -79,7 +80,7 @@ export function registerTaxonomyTools(server: McpServer, client: GYGClient): voi
     {
       description:
         'Get details for a GetYourGuide location (city, POI, or region) by its numeric ID.',
-      annotations: { readOnlyHint: true },
+      annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         locationId: z.number().int().positive().describe('Numeric location ID.'),
         language: languageArg,
@@ -97,7 +98,7 @@ export function registerTaxonomyTools(server: McpServer, client: GYGClient): voi
     'gyg_list_location_tours',
     {
       description: 'List tours available at one GetYourGuide location (city, POI, or region).',
-      annotations: { readOnlyHint: true },
+      annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         locationId: z.number().int().positive().describe('Numeric location ID.'),
         currency: currencyArg,

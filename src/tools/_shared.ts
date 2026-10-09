@@ -11,6 +11,17 @@ import { z } from 'zod';
  */
 export const jsonResponse = textResult;
 
+/**
+ * Annotations for every tool this server registers: each is a read-only GET
+ * against GetYourGuide's external API, so it is idempotent and open-world —
+ * matching the shared gyg_healthcheck, which mcp-utils marks openWorldHint.
+ */
+export const READ_ANNOTATIONS = {
+  readOnlyHint: true,
+  idempotentHint: true,
+  openWorldHint: true,
+} as const;
+
 /** Per-call currency override (falls back to the GYG_CURRENCY env default). */
 export const currencyArg = z
   .string()

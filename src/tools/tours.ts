@@ -14,6 +14,7 @@ import {
   jsonResponse,
   languageArg,
   paginationArgs,
+  READ_ANNOTATIONS,
   ToursEnvelope,
 } from './_shared.js';
 
@@ -30,7 +31,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
       description:
         'Search GetYourGuide tours and activities. Filter by free text (or "iata:<code>" for airports), location ID, ' +
         'category ID, and date range; sort by popularity, price, or rating. Returns slim summaries by default; pass view:"full" for the whole records.',
-      annotations: { readOnlyHint: true },
+      annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         q: z
           .string()
@@ -87,7 +88,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
       description:
         'Get the full GetYourGuide record for one tour/activity by its numeric ID. Image URLs are stripped by ' +
         'default; pass view:"full" to keep them.',
-      annotations: { readOnlyHint: true },
+      annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         tourId: tourIdArg,
         currency: currencyArg,
@@ -117,7 +118,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
     {
       description:
         'List the bookable options of a tour (ticket types, times, languages offered), optionally within a date range.',
-      annotations: { readOnlyHint: true },
+      annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         tourId: tourIdArg,
         ...dateRangeArgs,
@@ -145,7 +146,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
       description:
         'Get booking availability for a tour: bookable participant categories, addons, and the list of available ' +
         'dates (with participant ranges). Lighter than gyg_get_tour_options when you only need "when can I go".',
-      annotations: { readOnlyHint: true },
+      annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         tourId: tourIdArg,
         language: languageArg,
@@ -172,7 +173,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
     {
       description:
         'List customer reviews for a tour (rating outline plus individual review items).',
-      annotations: { readOnlyHint: true },
+      annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
         tourId: tourIdArg,
         currency: currencyArg,
