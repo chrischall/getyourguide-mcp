@@ -159,7 +159,8 @@ export class GYGClient {
 
   /**
    * GET a Partner API path (e.g. `/tours`) with query params. `undefined`
-   * param values are dropped; explicit per-call values win over the
+   * and empty-string param values are dropped (so `currency: ''` from a tool
+   * call falls back to the default instead of erasing a required param); explicit per-call values win over the
    * GYG_CURRENCY / GYG_LANGUAGE env defaults, which in turn win over the
    * USD / en fallbacks (the API rejects requests missing either).
    *
@@ -180,7 +181,7 @@ export class GYGClient {
             cnt_language: resolveLanguage(),
           };
     for (const [name, value] of Object.entries(params)) {
-      if (value !== undefined) merged[name] = value;
+      if (value !== undefined && value !== '') merged[name] = value;
     }
 
     try {

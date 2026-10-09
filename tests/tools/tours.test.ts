@@ -366,6 +366,19 @@ describe('gyg_get_tour_availability', () => {
   });
 });
 
+describe('gyg_get_tour_availability empty language', () => {
+  it('falls back to the resolved default language when language is an empty string', async () => {
+    const client = makeClient({});
+    setup(client);
+    await handlers.get('gyg_get_tour_availability')!({ tourId: 1, language: '' });
+    expect(client.get).toHaveBeenCalledWith(
+      '/tours/1/availability',
+      { 'cnt-language': 'en' },
+      { defaults: false },
+    );
+  });
+});
+
 describe('registration', () => {
   it('registers exactly the five tour tools', () => {
     setup(makeClient({}));

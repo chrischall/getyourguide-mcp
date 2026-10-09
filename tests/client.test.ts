@@ -164,6 +164,18 @@ describe('GYGClient.get', () => {
     expect(url).not.toContain('USD');
   });
 
+  // An LLM filling an optional arg with "" must get the default, not a request
+  // missing a required param (buildQueryString drops empty strings).
+  it('treats an empty-string per-call currency/language as absent', async () => {
+    process.env.GYG_API_KEY = 'test-key';
+    process.env.GYG_CURRENCY = 'EUR';
+    const { client, fetchFn } = makeClient([jsonResponse({})]);
+    await client.get('/tours', { currency: '', cnt_language: '' });
+    const [url] = fetchFn.mock.calls[0];
+    expect(url).toContain('currency=EUR');
+    expect(url).toContain('cnt_language=en');
+  });
+
   it('retries once on 429 honoring Retry-After, then succeeds', async () => {
     process.env.GYG_API_KEY = 'test-key';
     const { client, fetchFn, sleeps } = makeClient([

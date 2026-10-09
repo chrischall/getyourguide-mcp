@@ -159,7 +159,8 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
       // language is resolved here.
       const raw = await client.get(
         `/tours/${args.tourId}/availability`,
-        { 'cnt-language': args.language ?? resolveLanguage() },
+        // `||`, not `??`: an empty-string language means "unset" here too.
+        { 'cnt-language': args.language || resolveLanguage() },
         { defaults: false },
       );
       return jsonResponse(raw);
