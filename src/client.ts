@@ -22,6 +22,7 @@ import {
   McpToolError,
   readEnvVar,
   RequestTimeoutError,
+  UpstreamFormatError,
 } from '@chrischall/mcp-utils';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -211,6 +212,15 @@ export class GYGClient {
     try {
       return await this.apiFor(path).fetchJson<T>('GET', path, { query: merged });
     } catch (err) {
+      // A 2xx body that isn't JSON: since mcp-utils 3.0 fetchJson throws
+      // UpstreamFormatError (an McpToolError) with a generic hint. Re-wrap it
+      // with the GYG-specific message and hint before the pass-through below.
+      if (err instanceof UpstreamFormatError) {
+        throw new McpToolError(`GetYourGuide returned a non-JSON response for GET ${path}.`, {
+          hint: NON_JSON_HINT,
+          cause: err,
+        });
+      }
       // 401/429 already arrive as actionable McpToolErrors from the factories
       // above; requireKey's deferred-config error does too. Pass them through.
       if (err instanceof McpToolError) throw err;
@@ -224,10 +234,6 @@ export class GYGClient {
         if (err.status === 403) throw new GYGHttpError(err.message, 403, AUTH_HINT);
         if (err.status === 503) throw new GYGHttpError(err.message, 503, RATE_LIMIT_HINT);
         throw new GYGHttpError(err.message, err.status);
-      }
-      // A 2xx body that isn't JSON throws a SyntaxError out of fetchJson's parse.
-      if (err instanceof SyntaxError) {
-        throw new McpToolError(`GetYourGuide returned a non-JSON response for GET ${path}.`, { hint: NON_JSON_HINT });
       }
       // A caller cancellation is not a GetYourGuide failure — leave it as the
       // AbortError the MCP runtime recognises.
