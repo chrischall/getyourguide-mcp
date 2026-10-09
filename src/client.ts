@@ -21,6 +21,7 @@ import {
   loadDotenvSafely,
   McpToolError,
   readEnvVar,
+  requireEnvVar,
   RequestTimeoutError,
   UpstreamFormatError,
 } from '@chrischall/mcp-utils';
@@ -136,10 +137,13 @@ export class GYGClient {
   }
 
   // Deferred config: read the key at request time so the server boots (and
-  // answers tools/list) without credentials.
+  // answers tools/list) without credentials. It is still REQUIRED — every
+  // Partner API request needs it — so it goes through requireEnvVar, and the
+  // bare missing-variable error is re-thrown as an actionable McpToolError.
   private requireKey(): string {
-    const key = readEnvVar('GYG_API_KEY');
-    if (key === undefined) {
+    try {
+      return requireEnvVar('GYG_API_KEY');
+    } catch {
       throw new McpToolError(
         'GYG_API_KEY is not set — the GetYourGuide Partner API requires an API key on every request.',
         {
@@ -149,7 +153,6 @@ export class GYGClient {
         },
       );
     }
-    return key;
   }
 
   // Build a per-request bearer client. Constructed per call so GYG_BASE_URL /

@@ -36,7 +36,9 @@
       "env": {
         "GYG_API_KEY": "${user_config.gyg_api_key}",
         "GYG_CURRENCY": "${user_config.gyg_currency}",
-        "GYG_LANGUAGE": "${user_config.gyg_language}"
+        "GYG_LANGUAGE": "${user_config.gyg_language}",
+        "GYG_BASE_URL": "${user_config.gyg_base_url}",
+        "GYG_REQUEST_TIMEOUT_MS": "${user_config.gyg_request_timeout_ms}"
       }
     }
   },
@@ -59,6 +61,18 @@
       "title": "Default language",
       "description": "Content language (e.g. en, de). Optional — individual tool calls can override it.",
       "required": false
+    },
+    "gyg_base_url": {
+      "type": "string",
+      "title": "API base URL",
+      "description": "API base URL (default `https://api.getyourguide.com/1`)",
+      "required": false
+    },
+    "gyg_request_timeout_ms": {
+      "type": "string",
+      "title": "Request timeout (ms)",
+      "description": "Per-request timeout (default 30000)",
+      "required": false
     }
   },
   "tools": [
@@ -73,6 +87,10 @@
     {
       "name": "gyg_get_tour_options",
       "description": "List the bookable options of a tour"
+    },
+    {
+      "name": "gyg_get_tour_availability",
+      "description": "Get booking availability for a tour: bookable participant categories, addons, and the list of available dates (with participant ranges)"
     },
     {
       "name": "gyg_get_tour_reviews",
