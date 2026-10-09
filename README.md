@@ -89,6 +89,14 @@ see `.env.example`).
 
 - **Rate limits:** one automatic retry on `429`/`503` honoring `Retry-After`
   (capped at 10s). If it still fails, the error tells you to back off.
+- **Timeouts & network failures:** a request that exceeds
+  `GYG_REQUEST_TIMEOUT_MS`, or never reaches the API (DNS, refused, reset),
+  comes back as a tool error naming the request path, with a hint to raise
+  the timeout or check `GYG_BASE_URL` and your network. Cancelling a call is
+  not wrapped — it stays a cancellation.
+- **Empty arguments:** an empty-string query param (e.g. `currency: ""` or
+  `language: ""`) is dropped rather than sent, so the env default / `USD` /
+  `en` fallback applies instead of the API rejecting a blank value.
 - **Auth errors:** a `401`/`403` names both possible causes — a wrong key, or
   a key whose partner tier doesn't cover that endpoint.
 - **API drift:** responses are validated leniently. On an unexpected shape the
