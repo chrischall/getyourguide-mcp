@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.1.6](https://github.com/chrischall/getyourguide-mcp/compare/v2.1.5...v2.1.6) (2026-10-09)
+
+
+### Bug Fixes
+
+* annotate tools truthfully and sync manifests with the served tools ([#130](https://github.com/chrischall/getyourguide-mcp/issues/130)) ([d3a1c5b](https://github.com/chrischall/getyourguide-mcp/commit/d3a1c5bfb0f989f11a47b7cdfdc5772035418d5f))
+* declare the plugin MCP config under the mcpServers key Claude Code reads ([#131](https://github.com/chrischall/getyourguide-mcp/issues/131)) ([a7bcb57](https://github.com/chrischall/getyourguide-mcp/commit/a7bcb57aa82b4fc45c39f2fbbef949e9d0999985))
+* **deps:** update @chrischall/mcp-utils to 3.0.0 ([#129](https://github.com/chrischall/getyourguide-mcp/issues/129)) ([5ca9668](https://github.com/chrischall/getyourguide-mcp/commit/5ca966897df3320e692584d2843c1a5050e10ad9))
+* resolve low-severity audit findings ([#125](https://github.com/chrischall/getyourguide-mcp/issues/125)) ([4d938a7](https://github.com/chrischall/getyourguide-mcp/commit/4d938a7d1a11b0bd0418928d1df8326fcdd8c1b4))
+* **tools:** tell callers that compact strips image URLs on non-listing tools ([#128](https://github.com/chrischall/getyourguide-mcp/issues/128)) ([04877c6](https://github.com/chrischall/getyourguide-mcp/commit/04877c689f4372883dccadedf5838b1d3178c964))
+
 ## [2.1.5](https://github.com/chrischall/getyourguide-mcp/compare/v2.1.4...v2.1.5) (2026-10-07)
 
 
