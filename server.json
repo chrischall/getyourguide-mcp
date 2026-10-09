@@ -34,6 +34,18 @@
           "description": "Default content language (e.g. en, de). Optional — individual tool calls can override it.",
           "isRequired": false,
           "format": "string"
+        },
+        {
+          "name": "GYG_BASE_URL",
+          "description": "API base URL (default `https://api.getyourguide.com/1`)",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "GYG_REQUEST_TIMEOUT_MS",
+          "description": "Per-request timeout (default 30000)",
+          "isRequired": false,
+          "format": "string"
         }
       ]
     }
