@@ -93,7 +93,7 @@ see `.env.example`).
 - **API drift:** responses are validated leniently. On an unexpected shape the
   server logs a precise warning to stderr and returns the raw response rather
   than breaking; search tools also accept `extraParams` to pass raw query
-  params through verbatim. See `docs/GETYOURGUIDE-API.md` — routes and
+  params through (they never override a tool's own arguments). See `docs/GETYOURGUIDE-API.md` — routes and
   request shapes are live-verified against the API and its official OpenAPI
   spec; real 200 bodies still need pinning from a keyed capture.
 - **Secrets:** upstream error bodies are redacted then truncated before they

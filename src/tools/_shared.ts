@@ -61,15 +61,17 @@ export function dateRangeParam(dateFrom?: string, dateTo?: string): string[] | u
 }
 
 /**
- * Escape hatch for API drift: extra query params merged verbatim into the
- * request, so a renamed/undocumented Partner API param is usable without a
- * code change (the response shapes here were not live-verifiable at build
- * time — see docs/GETYOURGUIDE-API.md).
+ * Escape hatch for API drift: extra query params merged into the request, so
+ * a renamed/undocumented Partner API param is usable without a code change.
+ * (The response shapes here were not live-verifiable at build time — see
+ * docs/GETYOURGUIDE-API.md.) Keys that collide with a tool's typed args are
+ * ignored: the typed, zod-bounded args — and the client's currency /
+ * cnt_language defaults — always win.
  */
 export const extraParamsArg = z
   .record(z.string(), z.string())
   .optional()
-  .describe('Extra raw query params to merge into the request verbatim (escape hatch for API drift).');
+  .describe('Extra raw query params to merge into the request (escape hatch for API drift). Keys that duplicate this tool\'s own arguments are ignored.');
 
 /**
  * Fields kept by the compact tour projection — documented summary fields

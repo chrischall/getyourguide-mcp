@@ -71,6 +71,25 @@ describe('gyg_search_tours', () => {
     expect(JSON.parse(result.content[0].text)).toEqual(envelope);
   });
 
+  // extraParams is an escape hatch for params this server does NOT model; it
+  // must never override a validated or required first-class one.
+  it('lets typed args win over colliding extraParams keys', async () => {
+    const client = makeClient(envelope);
+    setup(client);
+    await handlers.get('gyg_search_tours')!({
+      view: 'full',
+      limit: 20,
+      offset: 0,
+      extraParams: { limit: '100000', offset: '9', currency: '', cnt_language: '', other: 'kept' },
+    });
+    const params = vi.mocked(client.get).mock.calls[0][1] as Record<string, unknown>;
+    expect(params.limit).toBe(20);
+    expect(params.offset).toBe(0);
+    expect(params.currency).toBeUndefined();
+    expect(params.cnt_language).toBeUndefined();
+    expect(params.other).toBe('kept');
+  });
+
   it('passes full datetimes through and sends a single-value date[] for dateFrom alone', async () => {
     const client = makeClient(envelope);
     setup(client);
@@ -272,6 +291,23 @@ describe('gyg_get_tour_options', () => {
       limit: 15,
       foo: 'bar',
     });
+  });
+});
+
+describe('gyg_get_tour_options extraParams', () => {
+  it('lets typed args win over colliding extraParams keys', async () => {
+    const client = makeClient({ data: { tour_options: [] } });
+    setup(client);
+    await handlers.get('gyg_get_tour_options')!({
+      tourId: 1,
+      limit: 15,
+      extraParams: { limit: '100000', currency: '', cnt_language: '', foo: 'bar' },
+    });
+    const params = vi.mocked(client.get).mock.calls[0][1] as Record<string, unknown>;
+    expect(params.limit).toBe(15);
+    expect(params.currency).toBeUndefined();
+    expect(params.cnt_language).toBeUndefined();
+    expect(params.foo).toBe('bar');
   });
 });
 

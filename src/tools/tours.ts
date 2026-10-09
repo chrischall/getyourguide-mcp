@@ -60,7 +60,11 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
       }),
     },
     async (args) => {
+      // extraParams spreads FIRST so the typed, zod-bounded args win on any
+      // colliding key (a typed arg left undefined still clears the collision,
+      // and the client then injects its currency/cnt_language defaults).
       const raw = await client.get('/tours', {
+        ...args.extraParams,
         q: args.q,
         location: args.locationId,
         'categories[]': args.categoryId,
@@ -71,7 +75,6 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
         cnt_language: args.language,
         limit: args.limit,
         offset: args.offset,
-        ...args.extraParams,
       });
       const validated = parseGYG(ToursEnvelope, raw, 'GET /tours');
       return viewResponse(args.view, validated, { tours: true });
@@ -126,11 +129,11 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
     },
     async (args) => {
       const raw = await client.get(`/tours/${args.tourId}/options`, {
+        ...args.extraParams,
         'date[]': dateRangeParam(args.dateFrom, args.dateTo),
         currency: args.currency,
         cnt_language: args.language,
         limit: args.limit,
-        ...args.extraParams,
       });
       return jsonResponse(raw);
     },
