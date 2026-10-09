@@ -21,6 +21,7 @@ import {
   loadDotenvSafely,
   McpToolError,
   readEnvVar,
+  RequestTimeoutError,
 } from '@chrischall/mcp-utils';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -98,6 +99,15 @@ export class GYGHttpError extends McpToolError {
     this.status = status;
   }
 }
+
+/** Hint shown when a request exceeds GYG_REQUEST_TIMEOUT_MS. */
+const TIMEOUT_HINT =
+  'GetYourGuide did not answer in time. Retry; if it keeps happening, raise GYG_REQUEST_TIMEOUT_MS ' +
+  '(default 30000 ms) or check GYG_BASE_URL and your network.';
+/** Hint shown when the request never got an HTTP answer (DNS, refused, reset). */
+const NETWORK_HINT =
+  'The request never reached GetYourGuide. Check your network connection and GYG_BASE_URL ' +
+  '(default https://api.getyourguide.com/1), then retry.';
 
 /** Test seams: both default to the real global implementations. */
 export interface GYGClientOptions {
@@ -219,8 +229,18 @@ export class GYGClient {
       if (err instanceof SyntaxError) {
         throw new McpToolError(`GetYourGuide returned a non-JSON response for GET ${path}.`, { hint: NON_JSON_HINT });
       }
-      // Timeouts / network failures propagate unchanged (as they did before).
-      throw err;
+      // A caller cancellation is not a GetYourGuide failure — leave it as the
+      // AbortError the MCP runtime recognises.
+      if (err instanceof Error && err.name === 'AbortError') throw err;
+      // Timeouts and network failures (DNS, refused, reset) get the same
+      // path-naming, actionable shape as every HTTP failure. The original text
+      // stays in the message ("timed out", "fetch failed") so the shared
+      // healthcheck ladder still tells timeout from transport.
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new McpToolError(`GetYourGuide request failed for GET ${path}: ${detail}`, {
+        hint: err instanceof RequestTimeoutError ? TIMEOUT_HINT : NETWORK_HINT,
+        cause: err,
+      });
     }
   }
 }

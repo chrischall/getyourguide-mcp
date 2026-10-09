@@ -150,6 +150,22 @@ describe('gyg_healthcheck', () => {
     expect(out.error.kind).not.toBe('rate_limited');
   });
 
+  // client.ts wraps timeouts / network failures with a hint but keeps the
+  // original text, which is what the shared ladder keys timeout vs transport on.
+  it('still tells a wrapped timeout from a wrapped network failure', async () => {
+    const timedOut = await setup(FULL, async () => {
+      throw new McpToolError(
+        'GetYourGuide request failed for GET /categories: Request to GetYourGuide timed out after 30000ms.',
+      );
+    }).call();
+    expect(timedOut.error.kind).toBe('timeout');
+
+    const unreachable = await setup(FULL, async () => {
+      throw new McpToolError('GetYourGuide request failed for GET /categories: fetch failed');
+    }).call();
+    expect(unreachable.error.kind).toBe('transport');
+  });
+
   // The guard for the class of bug the auto-review caught.
   it('keys only on text client.ts actually produces', () => {
     const clientSource = readFileSync(new URL('../src/client.ts', import.meta.url), 'utf8');
