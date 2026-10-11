@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.7](https://github.com/chrischall/getyourguide-mcp/compare/v2.1.6...v2.1.7) (2026-10-11)
+
+
+### Bug Fixes
+
+* **deps:** bump the production-dependencies group with 2 updates ([#133](https://github.com/chrischall/getyourguide-mcp/issues/133)) ([7a2898c](https://github.com/chrischall/getyourguide-mcp/commit/7a2898ca01800b0d51d27610804e1110e972abe5))
+
 ## [2.1.6](https://github.com/chrischall/getyourguide-mcp/compare/v2.1.5...v2.1.6) (2026-10-09)
 
 
