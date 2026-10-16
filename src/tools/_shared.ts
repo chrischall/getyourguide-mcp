@@ -2,7 +2,7 @@
 // atoms every listing tool repeats (currency / language / pagination),
 // the date[] range builder, and the opt-in compact projection for verbose
 // tour listings.
-import { McpToolError } from '@chrischall/mcp-utils';
+import { IsoDate, McpToolError } from '@chrischall/mcp-utils';
 import { z } from 'zod';
 
 /**
@@ -34,13 +34,22 @@ export const paginationArgs = {
   offset: z.number().int().min(0).default(0).describe('Number of items to skip (0-based).'),
 } as const;
 
+/**
+ * A calendar date (YYYY-MM-DD) or a local datetime (YYYY-MM-DDThh:mm[:ss]).
+ * Validated here so a malformed date ('2026-13-45', 'next friday') is a
+ * schema error the model can correct, not a rate-limited Partner API call
+ * that comes back 400 (fleet-audit#1253).
+ */
+const DateOrLocalDateTime = z.union([IsoDate, z.iso.datetime({ local: true })]);
+
 /** Date-range args for endpoints taking the Partner API's `date[]` param. */
 export const dateRangeArgs = {
-  dateFrom: z
-    .string()
-    .optional()
-    .describe('Earliest date, YYYY-MM-DD (or full YYYY-MM-DDThh:mm:ss). Required when dateTo is set.'),
-  dateTo: z.string().optional().describe('Latest date, YYYY-MM-DD (or full YYYY-MM-DDThh:mm:ss).'),
+  dateFrom: DateOrLocalDateTime.optional().describe(
+    'Earliest date, YYYY-MM-DD (or full YYYY-MM-DDThh:mm:ss). Required when dateTo is set.',
+  ),
+  dateTo: DateOrLocalDateTime.optional().describe(
+    'Latest date, YYYY-MM-DD (or full YYYY-MM-DDThh:mm:ss). Must not be before dateFrom.',
+  ),
 } as const;
 
 /**
@@ -61,7 +70,16 @@ export function dateRangeParam(dateFrom?: string, dateTo?: string): string[] | u
   const expand = (value: string, endOfDay: boolean): string =>
     /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T${endOfDay ? '23:59:59' : '00:00:00'}` : value;
   const range = [expand(dateFrom, false)];
-  if (dateTo !== undefined) range.push(expand(dateTo, true));
+  if (dateTo !== undefined) {
+    const to = expand(dateTo, true);
+    // Both sides are ISO local date-times now, so they order lexically.
+    if (to < range[0]) {
+      throw new McpToolError(`dateTo (${dateTo}) is before dateFrom (${dateFrom}).`, {
+        hint: 'Pass a dateTo on or after dateFrom, or swap the two.',
+      });
+    }
+    range.push(to);
+  }
   return range;
 }
 

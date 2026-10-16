@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { compactTour, compactTours, dateRangeParam } from '../../src/tools/_shared.js';
+import { z } from 'zod';
+import { compactTour, compactTours, dateRangeArgs, dateRangeParam } from '../../src/tools/_shared.js';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -25,6 +26,32 @@ describe('dateRangeParam', () => {
 
   it('rejects dateTo without dateFrom', () => {
     expect(() => dateRangeParam(undefined, '2026-08-05')).toThrowError(/dateTo was given without dateFrom/);
+  });
+
+  it('rejects a range whose dateTo is before dateFrom', () => {
+    expect(() => dateRangeParam('2026-08-05', '2026-08-01')).toThrowError(/dateTo .* is before dateFrom/);
+    expect(() => dateRangeParam('2026-08-05T10:00:00', '2026-08-05T09:00:00')).toThrowError(/before dateFrom/);
+  });
+
+  it('accepts a same-day range', () => {
+    expect(dateRangeParam('2026-08-05', '2026-08-05')).toEqual(['2026-08-05T00:00:00', '2026-08-05T23:59:59']);
+  });
+});
+
+describe('dateRangeArgs schema (fleet-audit#1253)', () => {
+  const schema = z.object(dateRangeArgs);
+
+  it.each(['2026-08-01', '2026-08-01T12:30:00'])('accepts %j', (v) => {
+    expect(schema.safeParse({ dateFrom: v, dateTo: v }).success).toBe(true);
+  });
+
+  it.each(['2026-13-45', 'next friday', '2026/07/06', '2026-02-30', ''])('rejects %j before it reaches the API', (v) => {
+    expect(schema.safeParse({ dateFrom: v }).success).toBe(false);
+    expect(schema.safeParse({ dateTo: v }).success).toBe(false);
+  });
+
+  it('leaves both optional', () => {
+    expect(schema.safeParse({}).success).toBe(true);
   });
 });
 
