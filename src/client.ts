@@ -21,6 +21,7 @@ import {
   loadDotenvSafely,
   McpToolError,
   readEnvVar,
+  readIntEnv,
   requireEnvVar,
   RequestTimeoutError,
   UpstreamFormatError,
@@ -49,10 +50,7 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 
 /** Resolve the per-request timeout in ms (env override, hardened). */
 export function requestTimeoutMs(): number {
-  const raw = readEnvVar('GYG_REQUEST_TIMEOUT_MS');
-  if (raw === undefined) return DEFAULT_REQUEST_TIMEOUT_MS;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : DEFAULT_REQUEST_TIMEOUT_MS;
+  return readIntEnv('GYG_REQUEST_TIMEOUT_MS', { min: 1 }) ?? DEFAULT_REQUEST_TIMEOUT_MS;
 }
 
 /** Ceiling on how long the single rate-limit retry will wait (caps Retry-After). */
