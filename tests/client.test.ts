@@ -88,6 +88,11 @@ describe('requestTimeoutMs', () => {
     process.env.GYG_REQUEST_TIMEOUT_MS = '-1';
     expect(requestTimeoutMs()).toBe(30_000);
   });
+
+  it.each(['2.5', '1e3', '0', '${user_config.request_timeout_ms}'])('falls back on a non-integer or unexpanded value %j', (v) => {
+    process.env.GYG_REQUEST_TIMEOUT_MS = v;
+    expect(requestTimeoutMs()).toBe(30_000);
+  });
 });
 
 describe('GYGClient.get', () => {
