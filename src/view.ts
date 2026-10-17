@@ -1,4 +1,4 @@
-import { minifiedResult, resolveView, stripMediaUrls, viewParam, type View } from '@chrischall/mcp-utils';
+import { createViewKit } from '@chrischall/mcp-utils';
 import { compactTours } from './tools/_shared.js';
 
 /**
@@ -28,14 +28,16 @@ const TOURS_NOTE =
 const MEDIA_NOTE =
   'compact strips image URLs and keeps every other field; "full" returns GetYourGuide\'s whole record, image URLs included.';
 
+const kit = createViewKit(GYG_VIEWS, { note: MEDIA_NOTE });
+
 /**
  * The `view` parameter every read tool in this server takes. `tours: true`
  * mirrors {@link viewResponse}'s flag: only the listings that get the field
  * projection may describe one — the rest would otherwise promise a slim tour
  * summary and answer a media-stripped payload.
  */
-export const viewArg = (opts: { tours?: boolean } = {}): ReturnType<typeof viewParam> =>
-  viewParam(GYG_VIEWS, { note: opts.tours === true ? TOURS_NOTE : MEDIA_NOTE });
+export const viewArg = (opts: { tours?: boolean } = {}): ReturnType<typeof kit.viewArg> =>
+  kit.viewArg(opts.tours === true ? TOURS_NOTE : MEDIA_NOTE);
 
 /**
  * Answer in the requested rung.
@@ -60,15 +62,9 @@ export function viewResponse(
   view: string | undefined,
   data: unknown,
   opts: { tours?: boolean } = {},
-): ReturnType<typeof minifiedResult> {
-  const rung: View = resolveView(view, GYG_VIEWS);
-  if (rung !== 'compact') return minifiedResult(data);
-  // A hand-written projection is NOT then media-stripped. `compactTour` was
-  // written with knowledge of the API and already drops the picture variants;
-  // running a blind subtractive rule over its output would let an un-grounded
-  // rule overrule a grounded one, which bit viator-mcp (#72) where the
-  // projection deliberately KEEPS a cover image. Media stripping is for the
-  // payloads that have no projection to speak for them.
-  if (opts.tours === true) return minifiedResult(compactTours(data));
-  return minifiedResult(stripMediaUrls(data));
+): ReturnType<typeof kit.viewResponse> {
+  // `createViewKit` (`@chrischall/mcp-utils`, fleet-audit#1348) runs the
+  // projection INSTEAD of media stripping, never before it: `compactTour` was
+  // written with knowledge of the API and already drops the picture variants.
+  return kit.viewResponse(view, data, opts.tours === true ? compactTours : undefined);
 }
