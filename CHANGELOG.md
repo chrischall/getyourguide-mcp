@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.8](https://github.com/chrischall/getyourguide-mcp/compare/v2.1.7...v2.1.8) (2026-10-17)
+
+
+### Refactor
+
+* **view:** build the view rungs with mcp-utils createViewKit ([#137](https://github.com/chrischall/getyourguide-mcp/issues/137)) ([9c203df](https://github.com/chrischall/getyourguide-mcp/commit/9c203df6010d4c3fc6b0382bb63c8c95d3d2cb46))
+
 ## [2.1.7](https://github.com/chrischall/getyourguide-mcp/compare/v2.1.6...v2.1.7) (2026-10-16)
 
 
