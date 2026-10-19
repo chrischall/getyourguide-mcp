@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.1.9](https://github.com/chrischall/getyourguide-mcp/compare/v2.1.8...v2.1.9) (2026-10-19)
+
+
+### Bug Fixes
+
+* **deps:** bump dotenv from 18.0.6 to 18.0.8 in the production-dependencies group ([#141](https://github.com/chrischall/getyourguide-mcp/issues/141)) ([c8c676f](https://github.com/chrischall/getyourguide-mcp/commit/c8c676f93414b2b97f48a9e8035c0a85516e04d5))
+
+
+### Documentation
+
+* **mint:** add sample prompts for the public catalog ([#144](https://github.com/chrischall/getyourguide-mcp/issues/144)) ([2c41e14](https://github.com/chrischall/getyourguide-mcp/commit/2c41e14ec02836767e5c0fed0a4fb6b0e5d7da2c))
+
 ## [2.1.8](https://github.com/chrischall/getyourguide-mcp/compare/v2.1.7...v2.1.8) (2026-10-17)
 
 
