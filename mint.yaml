@@ -39,3 +39,16 @@ egress:
     # partner.getyourguide.com is deliberately NOT here: it appears only inside
     # an error message telling the user where to sign up for an API key.
     - api.getyourguide.com
+examples:
+  - prompt: >-
+      Find the most popular skip-the-line Louvre tours on GetYourGuide for next
+      Saturday and compare their prices in EUR.
+    note: Searches tours by text and date, sorted by popularity.
+  - prompt: >-
+      Find a highly rated Sagrada Familia tour on GetYourGuide and summarize what
+      recent reviewers say about it, including common complaints.
+    note: Reads a tour's rating outline and individual reviews.
+  - prompt: >-
+      Which dates next month can I book a Colosseum guided tour on GetYourGuide,
+      and what ticket options and languages does it offer?
+    note: Checks availability and bookable options; read-only, no booking.
