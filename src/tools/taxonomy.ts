@@ -19,11 +19,13 @@ import {
   READ_ANNOTATIONS,
   ToursEnvelope,
 } from './_shared.js';
+import { travelMeta } from './hints.js';
 
 export function registerTaxonomyTools(server: McpServer, client: GYGClient): void {
   server.registerTool(
     'gyg_list_categories',
     {
+      _meta: travelMeta('lookup', { aliases: ['activity types', 'tour categories', 'kinds of tours'] }),
       description:
         'List GetYourGuide activity categories (use the IDs to filter tour searches). Image URLs are stripped by ' +
         'default; pass view:"full" to keep them.',
@@ -47,6 +49,7 @@ export function registerTaxonomyTools(server: McpServer, client: GYGClient): voi
   server.registerTool(
     'gyg_list_category_tours',
     {
+      _meta: travelMeta('lookup', { aliases: ['tours by type', 'food tours', 'boat tours', 'museum tickets'] }),
       description: 'List tours in one GetYourGuide category.',
       annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
@@ -80,6 +83,7 @@ export function registerTaxonomyTools(server: McpServer, client: GYGClient): voi
   server.registerTool(
     'gyg_get_location',
     {
+      _meta: travelMeta('lookup', { aliases: ['city', 'destination', 'landmark'] }),
       description:
         'Get details for a GetYourGuide location (city, POI, or region) by its numeric ID. Image URLs are stripped ' +
         'by default; pass view:"full" to keep them.',
@@ -101,6 +105,7 @@ export function registerTaxonomyTools(server: McpServer, client: GYGClient): voi
   server.registerTool(
     'gyg_list_location_tours',
     {
+      _meta: travelMeta('lookup', { aliases: ['things to do in', 'tours near', 'activities in', 'what to do in'] }),
       description: 'List tours available at one GetYourGuide location (city, POI, or region).',
       annotations: READ_ANNOTATIONS,
       inputSchema: z.object({
