@@ -75,3 +75,22 @@ which is what the flag used to ask for.)
 - A `401`/`403` error means the key is wrong **or** its partner tier doesn't
   cover that endpoint — check the partner dashboard before assuming the key
   is dead.
+
+## In context groups
+
+On a host that reads `_meta.mint` (mcp-host's context groups), every tool
+here except `gyg_healthcheck` is in the **travel** group as a `lookup`, with
+aliases in the words people say ("things to do", "day trips", "reviews",
+"when can i go", …).
+
+There is **no canonical read**: GetYourGuide's Partner API is a public
+catalogue with nothing that is the person's own — no bookings, no saved
+tours — so nothing here answers "what's new / due / on" for them, and no
+tool names a subject. A compound ask such as *"what's on this weekend in
+travel, and any good day trips from Lisbon?"* is answered by the group's
+other members for the first half; the second half is an ordinary lookup
+here (`gyg_search_tours` with `q: "lisbon day trip"`, or
+`gyg_list_location_tours`).
+
+This server calls the Partner API directly with an API key — it is not
+browser-bridged, so it never answers "needs your browser open".

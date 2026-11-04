@@ -16,6 +16,7 @@ import {
   READ_ANNOTATIONS,
   ToursEnvelope,
 } from './_shared.js';
+import { travelMeta } from './hints.js';
 
 const tourIdArg = z
   .number()
@@ -27,6 +28,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
   server.registerTool(
     'gyg_search_tours',
     {
+      _meta: travelMeta('lookup', { aliases: ['tours', 'things to do', 'activities', 'excursions', 'day trips', 'sightseeing', 'skip the line'] }),
       description:
         'Search GetYourGuide tours and activities. Filter by free text (or "iata:<code>" for airports), location ID, ' +
         'category ID, and date range; sort by popularity, price, or rating. Returns slim summaries by default; pass view:"full" for the whole records.',
@@ -84,6 +86,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
   server.registerTool(
     'gyg_get_tour',
     {
+      _meta: travelMeta('lookup', { aliases: ['tour details', 'activity details', 'what is included', 'meeting point'] }),
       description:
         'Get the full GetYourGuide record for one tour/activity by its numeric ID. Image URLs are stripped by ' +
         'default; pass view:"full" to keep them.',
@@ -115,6 +118,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
   server.registerTool(
     'gyg_get_tour_options',
     {
+      _meta: travelMeta('lookup', { aliases: ['ticket types', 'tour times', 'tour languages', 'ticket options'] }),
       description:
         'List the bookable options of a tour (ticket types, times, languages offered), optionally within a date range. ' +
         'Image URLs are stripped by default; pass view:"full" to keep them.',
@@ -144,6 +148,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
   server.registerTool(
     'gyg_get_tour_availability',
     {
+      _meta: travelMeta('lookup', { aliases: ['availability', 'when can i go', 'open dates', 'book a tour'] }),
       description:
         'Get booking availability for a tour: bookable participant categories, addons, and the list of available ' +
         'dates (with participant ranges). Lighter than gyg_get_tour_options when you only need "when can I go". ' +
@@ -174,6 +179,7 @@ export function registerTourTools(server: McpServer, client: GYGClient): void {
   server.registerTool(
     'gyg_get_tour_reviews',
     {
+      _meta: travelMeta('lookup', { aliases: ['reviews', 'ratings', 'is it worth it', 'what people say'] }),
       description:
         'List customer reviews for a tour (rating outline plus individual review items). Image URLs are stripped by ' +
         'default; pass view:"full" to keep them.',
