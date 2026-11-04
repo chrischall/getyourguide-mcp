@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.2.0](https://github.com/chrischall/getyourguide-mcp/compare/v2.1.8...v2.2.0) (2026-11-04)
+
+
+### Features
+
+* context-group hints ([#149](https://github.com/chrischall/getyourguide-mcp/issues/149)) ([4860095](https://github.com/chrischall/getyourguide-mcp/commit/4860095145de78ca6d38452d8081fd6c4874a14b))
+
+
+### Bug Fixes
+
+* **deps:** bump @chrischall/mcp-utils from 3.1.0 to 3.3.1 in the production-dependencies group ([#146](https://github.com/chrischall/getyourguide-mcp/issues/146)) ([c57ae07](https://github.com/chrischall/getyourguide-mcp/commit/c57ae0725771ca957a065d268fd3e2845b7236a6))
+* **deps:** bump dotenv from 18.0.6 to 18.0.8 in the production-dependencies group ([#141](https://github.com/chrischall/getyourguide-mcp/issues/141)) ([c8c676f](https://github.com/chrischall/getyourguide-mcp/commit/c8c676f93414b2b97f48a9e8035c0a85516e04d5))
+* **deps:** bump the production-dependencies group with 3 updates ([#148](https://github.com/chrischall/getyourguide-mcp/issues/148)) ([0c7719d](https://github.com/chrischall/getyourguide-mcp/commit/0c7719d6d2a7ec62357b40a0ee6e25f60335dde0))
+
+
+### Documentation
+
+* **mint:** add sample prompts for the public catalog ([#144](https://github.com/chrischall/getyourguide-mcp/issues/144)) ([2c41e14](https://github.com/chrischall/getyourguide-mcp/commit/2c41e14ec02836767e5c0fed0a4fb6b0e5d7da2c))
+
 ## [2.1.8](https://github.com/chrischall/getyourguide-mcp/compare/v2.1.7...v2.1.8) (2026-10-17)
 
 
